@@ -35,7 +35,6 @@ function fit() {
   for (let x = 0; x <= W; x += 40) { b.strokeStyle = 'rgba(255,60,172,.18)'; b.beginPath(); b.moveTo(x, 0); b.lineTo(x, H); b.stroke(); }
   for (let y = 0; y <= H; y += 40) { b.strokeStyle = 'rgba(29,233,182,.15)'; b.beginPath(); b.moveTo(0, y); b.lineTo(W, y); b.stroke(); }
   btns.forEach((bb, i) => { bb.x = W - 108 - i * 108; bb.y = H - 52; bb.w = 100; bb.h = 42; });
-  // boutons zoom en haut à droite
   zoomBtns.forEach((z, i) => { z.x = W - 40 - i * 44; z.y = 34; z.w = 36; z.h = 36; });
   if (P) { P.x = Math.min(P.x, W - 16); P.y = Math.min(P.y, H - 30); }
 }
@@ -206,9 +205,9 @@ function draw(now) {
   if (flash > 0) { ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(0, 0, W, H); }
   ctx.fillStyle = 'rgba(255,255,255,.5)'; ctx.fillRect(aim.x - 6, aim.y - 1, 12, 2); ctx.fillRect(aim.x - 1, aim.y - 6, 2, 12);
 
-  ctx.restore(); // fin du zoom
+  ctx.restore(); // fin zoom
 
-  // textes flottants (hors zoom pour rester lisibles)
+  // textes flottants
   ctx.font = 'bold 14px monospace'; ctx.textAlign = 'center';
   for (const t of T) { ctx.globalAlpha = Math.min(1, t.t * 2); ctx.fillStyle = t.c; ctx.fillText(t.s, t.x, t.y); }
   ctx.globalAlpha = 1;
@@ -219,26 +218,22 @@ function draw(now) {
     const show = joy.active;
     ctx.globalAlpha = show ? 0.9 : 0.55;
 
-    // base
     ctx.beginPath(); ctx.arc(jb.x, jb.y, JOY.r, 0, 7);
     ctx.fillStyle = 'rgba(20,10,40,.55)'; ctx.fill();
     ctx.lineWidth = 3; ctx.strokeStyle = '#1de9b6'; ctx.stroke();
 
-    // croix
     ctx.strokeStyle = 'rgba(255,255,255,.15)'; ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(jb.x - JOY.r + 8, jb.y); ctx.lineTo(jb.x + JOY.r - 8, jb.y);
     ctx.moveTo(jb.x, jb.y - JOY.r + 8); ctx.lineTo(jb.x, jb.y + JOY.r - 8);
     ctx.stroke();
 
-    // knob
     const kx = jb.x + joy.dx * (JOY.r - JOY.knob);
     const ky = jb.y + joy.dy * (JOY.r - JOY.knob);
     ctx.beginPath(); ctx.arc(kx, ky, JOY.knob, 0, 7);
     ctx.fillStyle = show ? '#1de9b6' : 'rgba(29,233,182,.4)'; ctx.fill();
     ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke();
 
-    // flèche
     if (show && Math.hypot(joy.dx, joy.dy) > 0.15) {
       const a = Math.atan2(joy.dy, joy.dx);
       ctx.save(); ctx.translate(kx, ky); ctx.rotate(a);
@@ -281,12 +276,10 @@ function draw(now) {
 }
 
 // ---------- inputs ----------
-// Renvoie coords ÉCRAN (sx,sy) ET MONDE (x,y après inversion zoom)
 const xy = e => {
   const r = canvas.getBoundingClientRect();
   const sx = (e.clientX - r.left) * W / r.width;
   const sy = (e.clientY - r.top) * H / r.height;
-  // inversion du zoom (centré sur W/2, H/2)
   const wx = (sx - W / 2) / zoom + W / 2;
   const wy = (sy - H / 2) / zoom + H / 2;
   return { sx, sy, x: wx, y: wy };
@@ -332,7 +325,6 @@ canvas.addEventListener('wheel', e => {
 // ---------- TACTILE ----------
 canvas.addEventListener('touchstart', e => {
   e.preventDefault();
-  // pinch 2 doigts
   if (e.touches.length === 2) {
     const a = xy(e.touches[0]), b = xy(e.touches[1]);
     pinchStart = { dist: Math.hypot(a.sx - b.sx, a.sy - b.sy), zoom };
@@ -344,20 +336,17 @@ canvas.addEventListener('touchstart', e => {
     const p = xy(t);
     if (pressZoom(p) || press(p) || restart()) continue;
 
-    // --- joystick gauche : zone bas-gauche ---
     if (!joy.active && inJoy(p)) {
       joy.active = true; joy.id = t.identifier;
       joy.dx = 0; joy.dy = 0;
       continue;
     }
-    // --- sinon : tir/déplacement (côté droit) ---
     tid = t.identifier; touch = aim = p; firing = true;
   }
 }, { passive: false });
 
 canvas.addEventListener('touchmove', e => {
   e.preventDefault();
-  // pinch zoom
   if (e.touches.length === 2 && pinchStart) {
     const a = xy(e.touches[0]), b = xy(e.touches[1]);
     const d = Math.hypot(a.sx - b.sx, a.sy - b.sy);
@@ -366,7 +355,6 @@ canvas.addEventListener('touchmove', e => {
   }
   for (const t of e.touches) {
     const p = xy(t);
-    // joystick : on lit le delta par rapport à la BASE FIXE
     if (joy.active && t.identifier === joy.id) {
       const jb = joyPos();
       let dx = p.sx - jb.x, dy = p.sy - jb.y;
