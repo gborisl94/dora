@@ -1,3 +1,4 @@
+window.onerror=(m,u,l)=>{document.body.innerHTML='<pre style="color:#f55;background:#000;padding:20px;font:14px monospace;white-space:pre-wrap">ERREUR ligne '+l+':\n'+m+'</pre>';};
 // INDIE MIAMI x GRIM DAWN ARCHER — Cordova / HTML5 Canvas, 0 librairie
 const canvas = document.getElementById('c'), ctx = canvas.getContext('2d');
 const ld = s => { const i = new Image(); i.src = s + '?v=' + Date.now(); return i; };
