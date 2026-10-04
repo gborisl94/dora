@@ -15,10 +15,6 @@
   #joyL{left:20px;}
   #joyR{right:20px;}
   .stick{position:absolute;top:50%;left:50%;width:54px;height:54px;border-radius:50%;background:rgba(255,255,255,0.35);transform:translate(-50%,-50%);pointer-events:none;border:2px solid rgba(255,255,255,0.5);}
-  .btn{position:absolute;width:76px;height:76px;border-radius:50%;background:rgba(255,255,255,0.1);border:2px solid rgba(255,255,255,0.3);color:#fff;font-family:monospace;font-weight:bold;font-size:12px;display:flex;align-items:center;justify-content:center;pointer-events:auto;touch-action:none;z-index:20;text-shadow:0 0 4px #000;}
-  #b_fire{right:150px;bottom:90px;background:rgba(255,80,80,0.25);border-color:rgba(255,120,120,0.6);}
-  #b_boom{right:20px;bottom:150px;}
-  #b_craft{right:110px;bottom:20px;}
   #hud{position:absolute;top:0;left:0;width:100%;height:34px;background:#000;display:flex;align-items:center;padding:0 8px;gap:10px;z-index:15;}
   #hpbar{width:180px;height:12px;background:#222;border:1px solid #555;overflow:hidden;}
   #hpfill{width:100%;height:100%;background:#0d0;transition:width 0.1s, background 0.2s;}
@@ -39,9 +35,6 @@
   </div>
   <div class="joy" id="joyL"><div class="stick" id="stickL"></div></div>
   <div class="joy" id="joyR"><div class="stick" id="stickR"></div></div>
-  <div class="btn" id="b_fire">FEU</div>
-  <div class="btn" id="b_boom">BOOM</div>
-  <div class="btn" id="b_craft">CRAFT</div>
   <div id="go"><h1>GAME OVER</h1><p id="gotxt">Score 0</p><button id="gobtn">RESTART</button></div>
 </div>
 <script src="game.js"></script>
