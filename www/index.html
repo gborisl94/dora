@@ -22,6 +22,9 @@
   #hpbar{width:180px;height:12px;background:#222;border:1px solid #555;overflow:hidden;}
   #hpfill{width:100%;height:100%;background:#0d0;transition:width 0.1s, background 0.2s;}
   #hudtxt{font-size:11px;color:#ccc;white-space:nowrap;}
+  #zoomUI{position:absolute;top:40px;right:8px;display:flex;flex-direction:column;gap:4px;z-index:20;pointer-events:auto;}
+  .zbtn{width:36px;height:36px;border-radius:8px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.35);color:#fff;font-family:monospace;font-weight:bold;font-size:18px;display:flex;align-items:center;justify-content:center;text-shadow:0 0 4px #000;}
+  #zoomLbl{font-size:10px;color:#aaa;text-align:center;padding:3px 0;background:rgba(0,0,0,0.4);border-radius:4px;}
   #go{position:absolute;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.65);display:none;align-items:center;justify-content:center;flex-direction:column;pointer-events:auto;z-index:30;}
   #go h1{font-size:42px;color:#ff007f;text-shadow:0 0 12px #ff007f;margin-bottom:8px;font-family:monospace;}
   #go p{font-size:18px;color:#fff;margin-bottom:20px;font-family:monospace;}
@@ -35,6 +38,11 @@
   <div id="hud">
     <div id="hpbar"><div id="hpfill"></div></div>
     <div id="hudtxt">HP 100 | SCORE 0</div>
+  </div>
+  <div id="zoomUI">
+    <div class="zbtn" id="zPlus">+</div>
+    <div id="zoomLbl">1.00x</div>
+    <div class="zbtn" id="zMinus">−</div>
   </div>
   <div class="joy" id="joyL"><div class="stick" id="stickL"></div></div>
   <div class="joy" id="joyR"><div class="stick" id="stickR"></div></div>
