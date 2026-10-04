@@ -1,4 +1,12 @@
 (function(){
+  // ============ CONFIG ZOOM ============
+  var ZOOM_MIN = 0.5;      // zoom arrière max
+  var ZOOM_MAX = 2.5;      // zoom avant max
+  var ZOOM_DEFAULT = 1.0;  // zoom au démarrage
+  var ZOOM_SPEED = 0.15;   // pas des boutons +/-
+  var PINCH_SENS = 0.005;  // sensibilité du pincement
+  var camX = 0, camY = 0;  // position caméra (suit le joueur)
+
   // ============ LANDSCAPE LOCK ============
   function lockLandscape(){
     try { if (window.screen && window.screen.orientation && window.screen.orientation.lock){ window.screen.orientation.lock('landscape').catch(function(){}); } } catch(e){}
@@ -18,6 +26,7 @@
   var hpfill = document.getElementById('hpfill'), go = document.getElementById('go'), gotxt = document.getElementById('gotxt');
   var joyL = document.getElementById('joyL'), stickL = document.getElementById('stickL');
   var joyR = document.getElementById('joyR'), stickR = document.getElementById('stickR');
+  var zoomLbl = document.getElementById('zoomLbl');
 
   var W = window.innerWidth, H = window.innerHeight;
   function resize(){ W = window.innerWidth; H = window.innerHeight; cvs.width = W; cvs.height = H; }
@@ -26,20 +35,52 @@
   window.addEventListener('orientationchange', function(){ setTimeout(resize, 200); });
 
   // ============ STATE ============
-  var player = { x: W/2, y: H/2, hp: 100, maxHp: 100, fish: 0, arr: 0, expl: 0, score: 0,
+  var zoom = ZOOM_DEFAULT;
+  var player = { x: 0, y: 0, hp: 100, maxHp: 100, fish: 0, arr: 0, expl: 0, score: 0,
                  dir: 0, aimAngle: 0, cool: 0, lastRegen: 0 };
   var bullets = [], enemies = [], drops = [], particles = [], floaters = [], trails = [];
   var gameOver = false, hitFlash = 0, shake = 0;
   var spawnTimer = 0;
 
+  // ============ ZOOM CONTROLS ============
+  function setZoom(z){
+    zoom = clamp(z, ZOOM_MIN, ZOOM_MAX);
+    zoomLbl.textContent = zoom.toFixed(2) + 'x';
+  }
+  document.getElementById('zPlus').addEventListener('touchstart', function(e){ e.preventDefault(); setZoom(zoom + ZOOM_SPEED); }, {passive:false});
+  document.getElementById('zMinus').addEventListener('touchstart', function(e){ e.preventDefault(); setZoom(zoom - ZOOM_SPEED); }, {passive:false});
+  document.getElementById('zPlus').addEventListener('mousedown', function(e){ e.preventDefault(); setZoom(zoom + ZOOM_SPEED); });
+  document.getElementById('zMinus').addEventListener('mousedown', function(e){ e.preventDefault(); setZoom(zoom - ZOOM_SPEED); });
+
+  // Pinch à 2 doigts (hors joysticks)
+  var pinchStartDist = 0, pinchStartZoom = 1;
+  cvs.addEventListener('touchstart', function(e){
+    if (e.touches.length === 2){
+      var dx = e.touches[0].clientX - e.touches[1].clientX;
+      var dy = e.touches[0].clientY - e.touches[1].clientY;
+      pinchStartDist = Math.hypot(dx, dy);
+      pinchStartZoom = zoom;
+    }
+  }, {passive:false});
+  cvs.addEventListener('touchmove', function(e){
+    if (e.touches.length === 2 && pinchStartDist > 0){
+      e.preventDefault();
+      var dx = e.touches[0].clientX - e.touches[1].clientX;
+      var dy = e.touches[0].clientY - e.touches[1].clientY;
+      var d = Math.hypot(dx, dy);
+      setZoom(pinchStartZoom + (d - pinchStartDist) * PINCH_SENS);
+    }
+  }, {passive:false});
+  cvs.addEventListener('touchend', function(){ pinchStartDist = 0; }, {passive:false});
+
   // ============ JOYSTICKS ============
   function makeJoy(el, stick, onMove, onEnd){
-    var active = false, id = null, cx = 0, cy = 0, dx = 0, dy = 0;
+    var id = null, cx = 0, cy = 0, dx = 0, dy = 0;
     var R = 46;
     function start(e){
       e.preventDefault();
       var t = e.changedTouches[0];
-      active = true; id = t.identifier;
+      id = t.identifier;
       var r = el.getBoundingClientRect();
       cx = r.left + r.width/2; cy = r.top + r.height/2;
       dx = t.clientX - cx; dy = t.clientY - cy;
@@ -56,7 +97,7 @@
       for (var i=0; i<e.changedTouches.length; i++){
         var t = e.changedTouches[i];
         if (t.identifier === id){
-          active = false; id = null; dx = 0; dy = 0;
+          id = null; dx = 0; dy = 0;
           stick.style.transform = 'translate(-50%,-50%)';
           onEnd();
         }
@@ -84,22 +125,23 @@
     function(dx,dy,m){ if (m>12){ player.aimAngle = Math.atan2(dy,dx); } },
     function(){});
 
-  // ============ TAP TO SHOOT (moitié droite de l'écran) ============
+  // ============ TAP TO SHOOT (moitié droite, hors zoom UI) ============
   cvs.addEventListener('touchstart', function(e){
-    e.preventDefault();
     for (var i=0; i<e.changedTouches.length; i++){
       var t = e.changedTouches[i];
-      var tx = t.clientX, ty = t.clientY;
-      // Zone de tir : moitié droite de l'écran, hors HUD
-      if (tx > W/2 && ty > 40){
-        var angle = Math.atan2(ty - player.y, tx - player.x);
+      // Ignore si touch sur les zones zoom (haut droite)
+      if (t.clientX > W - 60 && t.clientY < 130) return;
+      if (t.clientX > W/2 && t.clientY > 40){
+        // Coordonnées monde (inverse du zoom)
+        var wx = (t.clientX - W/2)/zoom + player.x;
+        var wy = (t.clientY - H/2)/zoom + player.y;
+        var angle = Math.atan2(wy - player.y, wx - player.x);
         player.aimAngle = angle;
         shoot(angle, false);
       }
     }
   }, {passive:false});
 
-  // Fallback clavier PC
   window.addEventListener('keydown', function(e){
     if (e.code === 'Space') shoot(player.aimAngle, false);
     if (e.code === 'KeyE' && player.expl > 0) shoot(player.aimAngle, true);
@@ -133,11 +175,13 @@
   // ============ SPAWN ============
   function spawnEnemy(){
     if (enemies.length >= 8) return;
+    // Spawn hors de la vue visible (en tenant compte du zoom)
+    var viewW = W/zoom, viewH = H/zoom;
     var side = Math.floor(rand(0,4)), ex, ey;
-    if (side===0){ ex=rand(0,W); ey=-40; }
-    else if (side===1){ ex=W+40; ey=rand(0,H); }
-    else if (side===2){ ex=rand(0,W); ey=H+40; }
-    else { ex=-40; ey=rand(0,H); }
+    if (side===0){ ex=player.x + rand(-viewW/2, viewW/2); ey=player.y - viewH/2 - 40; }
+    else if (side===1){ ex=player.x + viewW/2 + 40; ey=player.y + rand(-viewH/2, viewH/2); }
+    else if (side===2){ ex=player.x + rand(-viewW/2, viewW/2); ey=player.y + viewH/2 + 40; }
+    else { ex=player.x - viewW/2 - 40; ey=player.y + rand(-viewH/2, viewH/2); }
     enemies.push({
       x:ex, y:ey, hp:35, maxHp:35, type:Math.floor(rand(0,4)),
       speed:0.7, cool:0, hitFlash:0, knockX:0, knockY:0
@@ -149,20 +193,23 @@
     if (isExplosive){
       if (player.expl <= 0) return;
       player.expl--;
-      bullets.push({ x:player.x, y:player.y, vx:Math.cos(angle)*5, vy:Math.sin(angle)*5, dmg:38, expl:true, life:80 });
+      bullets.push({ x:player.x, y:player.y, vx:Math.cos(angle)*5, vy:Math.sin(angle)*5, dmg:38, expl:true, life:120 });
     } else {
-      bullets.push({ x:player.x, y:player.y, vx:Math.cos(angle)*7, vy:Math.sin(angle)*7, dmg:15, expl:false, life:60 });
+      bullets.push({ x:player.x, y:player.y, vx:Math.cos(angle)*7, vy:Math.sin(angle)*7, dmg:15, expl:false, life:90 });
     }
   }
 
   // ============ UPDATE BULLETS ============
   function updateBullets(){
+    var viewW = W/zoom, viewH = H/zoom;
     for (var i=bullets.length-1; i>=0; i--){
       var b = bullets[i];
       var prevX = b.x, prevY = b.y;
       b.x += b.vx; b.y += b.vy; b.life--;
       if (!b.expl) trails.push({ x1:prevX, y1:prevY, x2:b.x, y2:b.y, life:8 });
-      if (b.life<=0 || b.x<-50 || b.x>W+50 || b.y<-50 || b.y>H+50){ bullets.splice(i,1); continue; }
+      if (b.life<=0 || Math.abs(b.x - player.x) > viewW || Math.abs(b.y - player.y) > viewH){
+        bullets.splice(i,1); continue;
+      }
       for (var j=enemies.length-1; j>=0; j--){
         var e = enemies[j];
         if (dist(b,e) < 24){
@@ -230,18 +277,18 @@
   function update(){
     if (gameOver) return;
 
-    // Régén passive +1 PV / 2s
     var nowSec = Math.floor(Date.now()/2000);
     if (nowSec !== player.lastRegen){ player.lastRegen = nowSec; player.hp = Math.min(player.maxHp, player.hp + 1); }
 
-    // Déplacement joystick gauche
     var SPEED = 1.66;
     var dx = moveVec.x*SPEED, dy = moveVec.y*SPEED;
-    player.x = clamp(player.x+dx, 24, W-24);
-    player.y = clamp(player.y+dy, 44, H-24);
+    player.x += dx; player.y += dy;
     if (dx!==0 || dy!==0) player.dir = Math.atan2(dy,dx);
 
-    // Spawn
+    // Caméra suit le joueur (avec un peu de lissage)
+    camX += (player.x - camX) * 0.15;
+    camY += (player.y - camY) * 0.15;
+
     spawnTimer++;
     if (spawnTimer > 60 && enemies.length < 8){ spawnTimer = 0; spawnEnemy(); }
 
@@ -250,16 +297,21 @@
 
     updateBullets(); updateEnemies(); updateDrops(); updateParticles();
 
-    if (Math.random() < 0.005) drops.push({ x:rand(50,W-50), y:rand(50,H-50), fish:1, hp:15 });
+    if (Math.random() < 0.005){
+      drops.push({
+        x: player.x + rand(-W/zoom/2, W/zoom/2),
+        y: player.y + rand(-H/zoom/2, H/zoom/2),
+        fish:1, hp:15
+      });
+    }
 
-    // HUD
     var hpPct = player.hp/player.maxHp;
     hpfill.style.width = (hpPct*100)+'%';
     hpfill.style.background = hpPct>0.5?'#0d0':hpPct>0.25?'#dd0':'#d22';
-    hudtxt.textContent = 'HP ' + Math.floor(player.hp) + ' | FISH ' + player.fish + ' ARR ' + player.arr + ' EXPL ' + player.expl + ' SCORE ' + player.score;
+    hudtxt.textContent = 'HP ' + Math.floor(player.hp) + ' | FISH ' + player.fish + ' ARR ' + player.arr + ' EXPL ' + player.expl + ' SCORE ' + player.score + ' | ' + zoom.toFixed(2) + 'x';
   }
 
-  // ============ DRAW PLAYER (cercle cyan) ============
+  // ============ DRAW PLAYER ============
   function drawPlayer(){
     ctx.fillStyle = 'rgba(0,0,0,0.4)';
     ctx.beginPath(); ctx.ellipse(player.x, player.y+22, 18, 6, 0, 0, Math.PI*2); ctx.fill();
@@ -267,7 +319,6 @@
     ctx.fillStyle = '#4af';
     ctx.beginPath(); ctx.arc(player.x, player.y, 24, 0, Math.PI*2); ctx.fill();
 
-    // Petit trait indiquant la direction
     ctx.strokeStyle = '#fff';
     ctx.lineWidth = 3;
     ctx.beginPath();
@@ -278,29 +329,44 @@
 
   // ============ DRAW ============
   function draw(){
+    // Fond
     ctx.fillStyle = '#131326'; ctx.fillRect(0,0,W,H);
-    ctx.strokeStyle = '#1c1c35'; ctx.lineWidth = 1;
-    for (var i=0; i<W; i+=40){ ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,H); ctx.stroke(); }
-    for (var j=0; j<H; j+=40){ ctx.beginPath(); ctx.moveTo(0,j); ctx.lineTo(W,j); ctx.stroke(); }
 
+    // ---- MONDE (avec zoom + caméra) ----
+    ctx.save();
+    ctx.translate(W/2, H/2);
+    ctx.scale(zoom, zoom);
+    ctx.translate(-camX, -camY);
+
+    // Grille (calculée en coordonnées monde)
+    var viewW = W/zoom, viewH = H/zoom;
+    var startX = Math.floor((camX - viewW/2) / 40) * 40;
+    var endX = camX + viewW/2;
+    var startY = Math.floor((camY - viewH/2) / 40) * 40;
+    var endY = camY + viewH/2;
+    ctx.strokeStyle = '#1c1c35'; ctx.lineWidth = 1/zoom;
+    for (var gx = startX; gx < endX; gx += 40){
+      ctx.beginPath(); ctx.moveTo(gx, camY - viewH/2); ctx.lineTo(gx, camY + viewH/2); ctx.stroke();
+    }
+    for (var gy = startY; gy < endY; gy += 40){
+      ctx.beginPath(); ctx.moveTo(camX - viewW/2, gy); ctx.lineTo(camX + viewW/2, gy); ctx.stroke();
+    }
+
+    // Shake
     var sx = 0, sy = 0;
     if (shake > 0.5){ sx = rand(-shake, shake); sy = rand(-shake, shake); }
-    ctx.save(); ctx.translate(sx, sy);
+    ctx.translate(sx, sy);
 
-    // Ennemis : cercles rouges
+    // Ennemis
     for (var i2=0; i2<enemies.length; i2++){
       var e = enemies[i2];
       ctx.fillStyle = 'rgba(0,0,0,0.4)';
       ctx.beginPath(); ctx.ellipse(e.x, e.y+18, 16, 5, 0, 0, Math.PI*2); ctx.fill();
 
-      if (e.hitFlash > 0){
-        ctx.fillStyle = 'rgba(255,255,255,0.9)';
-      } else {
-        ctx.fillStyle = '#f44';
-      }
+      if (e.hitFlash > 0){ ctx.fillStyle = 'rgba(255,255,255,0.9)'; }
+      else { ctx.fillStyle = '#f44'; }
       ctx.beginPath(); ctx.arc(e.x, e.y, 22, 0, Math.PI*2); ctx.fill();
 
-      // Barre de vie
       ctx.fillStyle = '#333'; ctx.fillRect(e.x-20, e.y-30, 40, 4);
       ctx.fillStyle = '#0f0'; ctx.fillRect(e.x-20, e.y-30, 40*(e.hp/e.maxHp), 4);
     }
@@ -312,14 +378,14 @@
       var tr = trails[t];
       ctx.globalAlpha = tr.life/8;
       ctx.strokeStyle = '#ffffaa';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 2/zoom;
       ctx.beginPath(); ctx.moveTo(tr.x1, tr.y1); ctx.lineTo(tr.x2, tr.y2); ctx.stroke();
     }
     ctx.globalAlpha = 1;
 
-    // Ligne de visée (joystick droit actif)
+    // Ligne de visée
     if (joyRState.mag > 12){
-      ctx.save(); ctx.setLineDash([4,4]); ctx.strokeStyle = '#ff69b4'; ctx.lineWidth = 2;
+      ctx.save(); ctx.setLineDash([4,4]); ctx.strokeStyle = '#ff69b4'; ctx.lineWidth = 2/zoom;
       ctx.beginPath(); ctx.moveTo(player.x, player.y);
       ctx.lineTo(player.x + Math.cos(player.aimAngle)*90, player.y + Math.sin(player.aimAngle)*90);
       ctx.stroke(); ctx.restore();
@@ -331,7 +397,7 @@
       ctx.fillStyle = b.expl ? '#ff6600' : '#fff';
       ctx.beginPath(); ctx.arc(b.x, b.y, b.expl ? 6 : 3, 0, Math.PI*2); ctx.fill();
       if (b.expl){
-        ctx.strokeStyle = 'rgba(255,150,0,0.6)'; ctx.lineWidth = 2;
+        ctx.strokeStyle = 'rgba(255,150,0,0.6)'; ctx.lineWidth = 2/zoom;
         ctx.beginPath(); ctx.arc(b.x, b.y, 9, 0, Math.PI*2); ctx.stroke();
       }
     }
@@ -340,7 +406,7 @@
     for (var di=0; di<drops.length; di++){
       var d = drops[di];
       ctx.fillStyle = '#0ff'; ctx.beginPath(); ctx.arc(d.x, d.y, 6, 0, Math.PI*2); ctx.fill();
-      ctx.strokeStyle = 'rgba(0,255,255,0.4)'; ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(0,255,255,0.4)'; ctx.lineWidth = 2/zoom;
       ctx.beginPath(); ctx.arc(d.x, d.y, 9 + Math.sin(Date.now()/200)*2, 0, Math.PI*2); ctx.stroke();
     }
 
@@ -352,17 +418,21 @@
     }
     ctx.globalAlpha = 1;
 
-    // Dégâts flottants
-    ctx.font = 'bold 12px monospace'; ctx.textAlign = 'center';
+    // Dégâts flottants (taille adaptée au zoom)
+    ctx.font = 'bold ' + (12/zoom) + 'px monospace';
+    ctx.textAlign = 'center';
     for (var fi=0; fi<floaters.length; fi++){
       var f = floaters[fi];
       ctx.globalAlpha = Math.min(1, f.life/20);
-      ctx.fillStyle = '#000'; ctx.fillText(f.text, f.x+1, f.y+1);
+      ctx.fillStyle = '#000'; ctx.fillText(f.text, f.x+1/zoom, f.y+1/zoom);
       ctx.fillStyle = f.color; ctx.fillText(f.text, f.x, f.y);
     }
     ctx.globalAlpha = 1; ctx.textAlign = 'left';
 
     ctx.restore();
+
+    // ---- BORDURE VIRTUELLE (optionnel, montre les limites du monde) ----
+    // Rien à dessiner ici pour l'instant
   }
 
   // ============ LOOP ============
@@ -380,12 +450,17 @@
   // ============ RESTART ============
   document.getElementById('gobtn').addEventListener('click', function(){
     player.hp=100; player.fish=0; player.arr=0; player.expl=0; player.score=0;
-    player.x=W/2; player.y=H/2; player.lastRegen=0;
+    player.x=0; player.y=0; player.lastRegen=0;
+    camX=0; camY=0;
     bullets=[]; enemies=[]; drops=[]; particles=[]; floaters=[]; trails=[];
     gameOver=false; go.style.display='none'; hitFlash=0; shake=0;
+    setZoom(ZOOM_DEFAULT);
   });
 
   window.addEventListener('contextmenu', function(e){ e.preventDefault(); });
   window.addEventListener('touchmove', function(e){ e.preventDefault(); }, {passive:false});
   document.addEventListener('gesturestart', function(e){ e.preventDefault(); });
+
+  // Init zoom label
+  setZoom(ZOOM_DEFAULT);
 })();
