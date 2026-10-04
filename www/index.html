@@ -13,18 +13,15 @@
   #flash{position:absolute;top:0;left:0;width:100vw;height:100vh;background:#ff0022;opacity:0;pointer-events:none;transition:opacity 0.08s;z-index:10;}
   .joy{position:absolute;bottom:20px;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,0.08);border:2px solid rgba(255,255,255,0.25);pointer-events:auto;touch-action:none;z-index:20;}
   #joyL{left:20px;}
-  #joyR{right:20px;bottom:20px;}
+  #joyR{right:20px;}
   .stick{position:absolute;top:50%;left:50%;width:54px;height:54px;border-radius:50%;background:rgba(255,255,255,0.35);transform:translate(-50%,-50%);pointer-events:none;border:2px solid rgba(255,255,255,0.5);}
-  #fireBtn{position:absolute;right:150px;bottom:20px;width:90px;height:90px;border-radius:50%;background:rgba(255,60,60,0.2);border:3px solid rgba(255,80,80,0.6);color:#fff;font-family:monospace;font-weight:bold;font-size:14px;display:flex;align-items:center;justify-content:center;pointer-events:auto;touch-action:none;z-index:20;text-shadow:0 0 4px #000;overflow:visible;}
-  #fireBtn.active{background:rgba(255,100,60,0.4);border-color:rgba(255,180,80,0.9);}
-  #fireCharge{position:absolute;top:-4px;left:-4px;width:98px;height:98px;border-radius:50%;pointer-events:none;z-index:21;}
+  #fireBtn{position:absolute;right:160px;bottom:30px;width:100px;height:100px;border-radius:50%;background:rgba(255,60,60,0.2);border:3px solid rgba(255,80,80,0.6);color:#fff;font-family:monospace;font-weight:bold;font-size:14px;display:flex;align-items:center;justify-content:center;pointer-events:auto;touch-action:none;z-index:20;text-shadow:0 0 4px #000;overflow:visible;}
+  #fireBtn.active{background:rgba(255,100,60,0.45);border-color:rgba(255,200,80,0.95);}
+  #fireCharge{position:absolute;top:-5px;left:-5px;width:110px;height:110px;border-radius:50%;pointer-events:none;z-index:21;}
   #hud{position:absolute;top:0;left:0;width:100%;height:34px;background:#000;display:flex;align-items:center;padding:0 8px;gap:10px;z-index:15;}
   #hpbar{width:180px;height:12px;background:#222;border:1px solid #555;overflow:hidden;}
   #hpfill{width:100%;height:100%;background:#0d0;transition:width 0.1s, background 0.2s;}
   #hudtxt{font-size:11px;color:#ccc;white-space:nowrap;}
-  #zoomUI{position:absolute;top:40px;right:8px;display:flex;flex-direction:column;gap:4px;z-index:20;pointer-events:auto;}
-  .zbtn{width:34px;height:34px;border-radius:6px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.3);color:#fff;font-family:monospace;font-weight:bold;font-size:16px;display:flex;align-items:center;justify-content:center;text-shadow:0 0 4px #000;}
-  #zoomLbl{font-size:9px;color:#aaa;text-align:center;padding:2px 0;}
   #go{position:absolute;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.65);display:none;align-items:center;justify-content:center;flex-direction:column;pointer-events:auto;z-index:30;}
   #go h1{font-size:42px;color:#ff007f;text-shadow:0 0 12px #ff007f;margin-bottom:8px;font-family:monospace;}
   #go p{font-size:18px;color:#fff;margin-bottom:20px;font-family:monospace;}
@@ -37,18 +34,13 @@
   <div id="flash"></div>
   <div id="hud">
     <div id="hpbar"><div id="hpfill"></div></div>
-    <div id="hudtxt">HP 100 | FISH 0 ARR 0 EXPL 0 SCORE 0</div>
-  </div>
-  <div id="zoomUI">
-    <div class="zbtn" id="zPlus">+</div>
-    <div id="zoomLbl">1.00x</div>
-    <div class="zbtn" id="zMinus">−</div>
+    <div id="hudtxt">HP 100 | SCORE 0</div>
   </div>
   <div class="joy" id="joyL"><div class="stick" id="stickL"></div></div>
   <div class="joy" id="joyR"><div class="stick" id="stickR"></div></div>
   <div id="fireBtn">
     FEU
-    <canvas id="fireCharge" width="98" height="98"></canvas>
+    <canvas id="fireCharge" width="110" height="110"></canvas>
   </div>
   <div id="go"><h1>GAME OVER</h1><p id="gotxt">Score 0</p><button id="gobtn">RESTART</button></div>
 </div>
