@@ -1,4 +1,3 @@
-window.onerror=(m,u,l)=>{document.body.innerHTML='<pre style="color:#f55;background:#000;padding:20px;font:14px monospace;white-space:pre-wrap">ERREUR ligne '+l+':\n'+m+'</pre>';};
 // INDIE MIAMI x GRIM DAWN ARCHER — Cordova / HTML5 Canvas, 0 librairie
 const canvas = document.getElementById('c'), ctx = canvas.getContext('2d');
 const ld = s => { const i = new Image(); i.src = s + '?v=' + Date.now(); return i; };
@@ -8,15 +7,10 @@ const R = Math.random, dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y), AOE = 
 let W = 640, H = 360, P, E, A, D, F, T, arrows, fish, expl, score, spawnT, regenT, over, overT, firing, tid, touch, flash, last = 0;
 let keys = {}, aim = { x: 0, y: 0 };
 
-// ---------- JOYSTICK GAUCHE (déplacement) ----------
+// ---------- JOYSTICK GAUCHE (fixe, en bas-gauche) ----------
 let joy = { active: false, id: null, dx: 0, dy: 0 };
 const JOY = { r: 70, knob: 32 };
 function joyPos() { return { x: JOY.r + 30, y: H - JOY.r - 30 }; }
-
-// ---------- JOYSTICK DROIT (visée) ----------
-let joyR = { active: false, id: null, dx: 0, dy: 0 };
-const JOYR = { r: 60, knob: 28 };
-function joyRPos() { return { x: W - JOYR.r - 30, y: H - JOYR.r - 30 }; }
 
 // ---------- ZOOM / DÉZOOM ----------
 let zoom = 0.75, zoomTarget = 0.75;
@@ -28,7 +22,6 @@ const zoomBtns = [
 ];
 
 const bg = document.createElement('canvas');
-const btns = [{ t: 'CRAFT [C]', f: () => craftExplosive() }, { t: 'BOOM [E]', f: () => shoot(true) }];
 
 // ---------- taille écran ----------
 function fit() {
@@ -40,8 +33,6 @@ function fit() {
   b.lineWidth = 1;
   for (let x = 0; x <= W; x += 40) { b.strokeStyle = 'rgba(255,60,172,.18)'; b.beginPath(); b.moveTo(x, 0); b.lineTo(x, H); b.stroke(); }
   for (let y = 0; y <= H; y += 40) { b.strokeStyle = 'rgba(29,233,182,.15)'; b.beginPath(); b.moveTo(0, y); b.lineTo(W, y); b.stroke(); }
-  // boutons remontés au-dessus du joystick droit
-  btns.forEach((bb, i) => { bb.x = W - 108 - i * 108; bb.y = H - 200; bb.w = 100; bb.h = 42; });
   zoomBtns.forEach((z, i) => { z.x = W - 40 - i * 44; z.y = 34; z.w = 36; z.h = 36; });
   if (P) { P.x = Math.min(P.x, W - 16); P.y = Math.min(P.y, H - 30); }
 }
@@ -52,7 +43,6 @@ function reset() {
   arrows = 20; fish = 0; expl = 0; score = 0; spawnT = 1; regenT = 0;
   over = false; overT = 0; firing = false; tid = null; touch = null; flash = 0; aim = { x: W / 2 + 60, y: H / 2 };
   joy.active = false; joy.id = null; joy.dx = 0; joy.dy = 0;
-  joyR.active = false; joyR.id = null; joyR.dx = 0; joyR.dy = 0;
   zoom = zoomTarget = 0.75; pinchStart = null;
 }
 
@@ -92,23 +82,12 @@ function spawn() {
 function update(dt) {
   if (over) { overT += dt; return; }
 
-  // lissage zoom
   zoom += (zoomTarget - zoom) * Math.min(1, dt * 10);
-
-  // JOYSTICK DROIT : oriente la visée
-  if (joyR.active) {
-    const jr = Math.hypot(joyR.dx, joyR.dy);
-    if (jr > 0.15) {
-      const len = 100;
-      aim = { x: P.x + (joyR.dx / jr) * len, y: P.y + (joyR.dy / jr) * len };
-    }
-  }
 
   let mx = 0, my = 0, sp = 140;
   if (keys.ArrowLeft || keys.q || keys.a) mx--; if (keys.ArrowRight || keys.d) mx++;
   if (keys.ArrowUp || keys.z || keys.w) my--; if (keys.ArrowDown || keys.s) my++;
 
-  // JOYSTICK GAUCHE prioritaire
   if (joy.active) {
     const jl = Math.hypot(joy.dx, joy.dy);
     if (jl > 0.15) {
@@ -188,7 +167,6 @@ function drawPlayer() {
 function draw(now) {
   ctx.globalAlpha = 1; ctx.drawImage(bg, 0, 0);
 
-  // ---------- SCÈNE DE JEU AVEC ZOOM ----------
   ctx.save();
   const cx = W / 2, cy = H / 2;
   ctx.translate(cx, cy);
@@ -222,9 +200,8 @@ function draw(now) {
   if (flash > 0) { ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(0, 0, W, H); }
   ctx.fillStyle = 'rgba(255,255,255,.5)'; ctx.fillRect(aim.x - 6, aim.y - 1, 12, 2); ctx.fillRect(aim.x - 1, aim.y - 6, 2, 12);
 
-  ctx.restore(); // fin zoom
+  ctx.restore();
 
-  // textes flottants
   ctx.font = 'bold 14px monospace'; ctx.textAlign = 'center';
   for (const t of T) { ctx.globalAlpha = Math.min(1, t.t * 2); ctx.fillStyle = t.c; ctx.fillText(t.s, t.x, t.y); }
   ctx.globalAlpha = 1;
@@ -261,50 +238,6 @@ function draw(now) {
     ctx.globalAlpha = 1;
   }
 
-  // ---------- JOYSTICK DROIT (VISÉE) ----------
-  {
-    const jb = joyRPos();
-    const show = joyR.active;
-    ctx.globalAlpha = show ? 0.9 : 0.55;
-
-    ctx.beginPath(); ctx.arc(jb.x, jb.y, JOYR.r, 0, 7);
-    ctx.fillStyle = 'rgba(20,10,40,.55)'; ctx.fill();
-    ctx.lineWidth = 3; ctx.strokeStyle = '#ff3cac'; ctx.stroke();
-
-    ctx.strokeStyle = 'rgba(255,255,255,.15)'; ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(jb.x - JOYR.r + 8, jb.y); ctx.lineTo(jb.x + JOYR.r - 8, jb.y);
-    ctx.moveTo(jb.x, jb.y - JOYR.r + 8); ctx.lineTo(jb.x, jb.y + JOYR.r - 8);
-    ctx.stroke();
-
-    const kx = jb.x + joyR.dx * (JOYR.r - JOYR.knob);
-    const ky = jb.y + joyR.dy * (JOYR.r - JOYR.knob);
-    ctx.beginPath(); ctx.arc(kx, ky, JOYR.knob, 0, 7);
-    ctx.fillStyle = show ? '#ff3cac' : 'rgba(255,60,172,.4)'; ctx.fill();
-    ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke();
-
-    // icône viseur au centre quand inactif
-    if (!show) {
-      ctx.strokeStyle = 'rgba(255,60,172,.7)'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(jb.x, jb.y, 10, 0, 7); ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(jb.x - 16, jb.y); ctx.lineTo(jb.x - 6, jb.y);
-      ctx.moveTo(jb.x + 6, jb.y);  ctx.lineTo(jb.x + 16, jb.y);
-      ctx.moveTo(jb.x, jb.y - 16); ctx.lineTo(jb.x, jb.y - 6);
-      ctx.moveTo(jb.x, jb.y + 6);  ctx.lineTo(jb.x, jb.y + 16);
-      ctx.stroke();
-    }
-
-    if (show && Math.hypot(joyR.dx, joyR.dy) > 0.15) {
-      const a = Math.atan2(joyR.dy, joyR.dx);
-      ctx.save(); ctx.translate(kx, ky); ctx.rotate(a);
-      ctx.fillStyle = '#0b1a3a';
-      ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(-6, -7); ctx.lineTo(-6, 7); ctx.closePath(); ctx.fill();
-      ctx.restore();
-    }
-    ctx.globalAlpha = 1;
-  }
-
   // ---------- BOUTONS ZOOM (haut droite) ----------
   for (const z of zoomBtns) {
     ctx.fillStyle = 'rgba(20,10,40,.8)'; ctx.fillRect(z.x, z.y, z.w, z.h);
@@ -321,13 +254,7 @@ function draw(now) {
   ctx.fillStyle = '#ffe14d'; ctx.fillText('ARR ' + arrows, 76, 46);
   ctx.fillStyle = '#ff7b00'; ctx.fillText('EXPL ' + expl, 136, 46);
   ctx.fillStyle = '#ff3cac'; ctx.font = 'bold 18px monospace'; ctx.fillText('SCORE ' + score, 12, 68);
-  const can = fish >= 1 && arrows >= 3;
-  for (const b of btns) {
-    ctx.fillStyle = 'rgba(20,10,40,.8)'; ctx.fillRect(b.x, b.y, b.w, b.h);
-    ctx.strokeStyle = (b.t[0] == 'C' && can) || (b.t[0] == 'B' && expl > 0) ? (((now / 200) | 0) % 2 ? '#ff3cac' : '#ffe14d') : '#a07c3c';
-    ctx.lineWidth = 2; ctx.strokeRect(b.x, b.y, b.w, b.h);
-    ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.font = 'bold 13px monospace'; ctx.fillText(b.t, b.x + b.w / 2, b.y + 26);
-  }
+
   if (over) {
     ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.fillRect(0, 0, W, H); ctx.textAlign = 'center';
     ctx.fillStyle = '#ff3cac'; ctx.font = 'bold 36px monospace'; ctx.fillText('GAME OVER', W / 2, H / 2 - 10);
@@ -345,7 +272,6 @@ const xy = e => {
   const wy = (sy - H / 2) / zoom + H / 2;
   return { sx, sy, x: wx, y: wy };
 };
-const press = p => { for (const b of btns) if (p.sx > b.x && p.sx < b.x + b.w && p.sy > b.y && p.sy < b.y + b.h) { if (!over) b.f(); return true; } return false; };
 const pressZoom = p => {
   for (const z of zoomBtns) if (p.sx > z.x && p.sx < z.x + z.w && p.sy > z.y && p.sy < z.y + z.h) {
     zoomTarget = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoomTarget + z.sign * 0.15));
@@ -356,10 +282,6 @@ const pressZoom = p => {
 const inJoy = p => {
   const jb = joyPos();
   return Math.hypot(p.sx - jb.x, p.sy - jb.y) < JOY.r * 1.4;
-};
-const inJoyR = p => {
-  const jb = joyRPos();
-  return Math.hypot(p.sx - jb.x, p.sy - jb.y) < JOYR.r * 1.4;
 };
 const restart = () => { if (over && overT > 0.6) { reset(); return true; } return false; };
 const key = e => e.key.length > 1 ? e.key : e.key.toLowerCase();
@@ -375,10 +297,10 @@ addEventListener('keydown', e => {
 addEventListener('keyup', e => { const k = key(e); keys[k] = false; if (k == ' ') firing = false; });
 
 // ---------- SOURIS ----------
-canvas.addEventListener('mousemove', e => { if (!joy.active && !joyR.active) aim = xy(e); });
+canvas.addEventListener('mousemove', e => { if (!joy.active) aim = xy(e); });
 canvas.addEventListener('mousedown', e => {
   const p = xy(e); aim = p;
-  if (pressZoom(p) || press(p) || restart()) return;
+  if (pressZoom(p) || restart()) return;
   firing = true;
 });
 addEventListener('mouseup', () => { firing = false; });
@@ -394,27 +316,18 @@ canvas.addEventListener('touchstart', e => {
     const a = xy(e.touches[0]), b = xy(e.touches[1]);
     pinchStart = { dist: Math.hypot(a.sx - b.sx, a.sy - b.sy), zoom };
     if (joy.active) { joy.active = false; joy.id = null; joy.dx = 0; joy.dy = 0; }
-    if (joyR.active) { joyR.active = false; joyR.id = null; joyR.dx = 0; joyR.dy = 0; }
     tid = null; touch = null; firing = false;
     return;
   }
   for (const t of e.changedTouches) {
     const p = xy(t);
-    if (pressZoom(p) || press(p) || restart()) continue;
+    if (pressZoom(p) || restart()) continue;
 
-    // joystick gauche
     if (!joy.active && inJoy(p)) {
       joy.active = true; joy.id = t.identifier;
       joy.dx = 0; joy.dy = 0;
       continue;
     }
-    // joystick droit (visée)
-    if (!joyR.active && inJoyR(p)) {
-      joyR.active = true; joyR.id = t.identifier;
-      joyR.dx = 0; joyR.dy = 0;
-      continue;
-    }
-    // sinon : tir / déplacement tap
     tid = t.identifier; touch = aim = p; firing = true;
   }
 }, { passive: false });
@@ -429,7 +342,6 @@ canvas.addEventListener('touchmove', e => {
   }
   for (const t of e.touches) {
     const p = xy(t);
-    // joystick gauche
     if (joy.active && t.identifier === joy.id) {
       const jb = joyPos();
       let dx = p.sx - jb.x, dy = p.sy - jb.y;
@@ -439,20 +351,28 @@ canvas.addEventListener('touchmove', e => {
       joy.dx = dx / max; joy.dy = dy / max;
       continue;
     }
-    // joystick droit (visée)
-    if (joyR.active && t.identifier === joyR.id) {
-      const jb = joyRPos();
-      let dx = p.sx - jb.x, dy = p.sy - jb.y;
-      const len = Math.hypot(dx, dy);
-      const max = JOYR.r - JOYR.knob;
-      if (len > max) { dx = dx / len * max; dy = dy / len * max; }
-      joyR.dx = dx / max; joyR.dy = dy / max;
-      continue;
-    }
-    // tir / déplacement tap
     if (t.identifier === tid) touch = aim = p;
   }
 }, { passive: false });
 
 const tend = e => {
-  if (e.touches.length < 
+  if (e.touches.length < 2) pinchStart = null;
+  for (const t of e.changedTouches) {
+    if (joy.active && t.identifier === joy.id) {
+      joy.active = false; joy.id = null; joy.dx = 0; joy.dy = 0;
+    }
+    if (t.identifier === tid) { tid = null; touch = null; firing = false; }
+  }
+};
+canvas.addEventListener('touchend', tend);
+canvas.addEventListener('touchcancel', tend);
+addEventListener('resize', fit);
+
+// ---------- boucle ----------
+fit(); reset();
+function loop(now) {
+  requestAnimationFrame(loop);
+  try { const dt = Math.min(0.05, (now - last) / 1000 || 0); last = now; update(dt); draw(now); }
+  catch (e) { ctx.globalAlpha = 1; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, 22); ctx.fillStyle = '#f55'; ctx.font = '11px monospace'; ctx.textAlign = 'left'; ctx.fillText('ERR ' + (e && e.message), 4, 15); }
+}
+requestAnimationFrame(loop);
