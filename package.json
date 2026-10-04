@@ -12,7 +12,7 @@
   "author": "indiemiami",
   "license": "MIT",
   "devDependencies": {
-    "cordova-android": "^12.0.0"
+    "cordova-android": "^13.0.0"
   },
   "cordova": {
     "platforms": ["android"],
