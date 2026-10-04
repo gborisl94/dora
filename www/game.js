@@ -22,10 +22,15 @@ const CHARGE_MULT   = [1, 1.6, 2.5];
 const CHARGE_COLORS = ['#1de9b6', '#ffe14d', '#ff7b00', '#ff3cac'];
 const CHARGE_NAMES  = ['', 'PUISSANT', 'LOURD', 'EXPLOSIF'];
 
+// ---------- JOYSTICK GAUCHE ----------
+let joy = { active: false, id: null, ox: 0, oy: 0, dx: 0, dy: 0 };
+const JOY = { r: 70, knob: 32 };
+function joyBasePos() { return { x: JOY.r + 30, y: H - JOY.r - 30 }; }
+
 // ---------- ISOMÉTRIQUE ----------
-const ISO_W = 64, ISO_H = 32;          // tuile 2:1
-let cam = { x: 0, y: 0 };              // caméra en coords monde
-const WORLD_RADIUS = 22;               // rayon du monde (en tuiles)
+const ISO_W = 64, ISO_H = 32;
+let cam = { x: 0, y: 0 };
+const WORLD_RADIUS = 22;
 
 function toScreen(wx, wy, wz = 0) {
   const rx = wx - cam.x, ry = wy - cam.y;
@@ -54,23 +59,19 @@ const btns = [
 
 // ---------- TAILLE ÉCRAN + GRILLE ISO DE FOND ----------
 function fit() {
-  // 👉 FORCE LE RATIO PAYSAGE : le grand côté = largeur
   const big   = Math.max(innerWidth, innerHeight, 1);
   const small = Math.min(innerWidth, innerHeight, 1);
   const k = 640 / big;
   W = canvas.width  = Math.round(big   * k) || 640;
   H = canvas.height = Math.round(small * k) || 360;
 
-  // bg = canvas offscreen, on y redessine la grille iso
   bg.width = W; bg.height = H;
   const b = bg.getContext('2d');
 
-  // fond dégradé violet -> bleu nuit
   const g = b.createLinearGradient(0, 0, 0, H);
   g.addColorStop(0, '#2a0a4a'); g.addColorStop(1, '#0b1a3a');
   b.fillStyle = g; b.fillRect(0, 0, W, H);
 
-  // grille iso centrée sur l'écran (fixe, indépendante de la caméra)
   b.lineWidth = 1;
   const RANGE = 40;
   const cx = W / 2, cy = H / 2;
@@ -91,7 +92,6 @@ function fit() {
     b.stroke();
   }
 
-  // boutons CRAFT / BOOM (bas droite)
   btns.forEach((bb, i) => { bb.x = W - 108 - i * 108; bb.y = H - 52; bb.w = 100; bb.h = 42; });
 
   if (P) {
@@ -109,6 +109,7 @@ function reset() {
   aim = { x: 6, y: 0 };
   charging = false; chargeT = 0; chargeLvl = 0; lastVibLvl = -1; aimBtn = null;
   cam = { x: 0, y: 0 };
+  joy.active = false; joy.id = null; joy.dx = 0; joy.dy = 0;
 }
 
 // ---------- ACTIONS ----------
@@ -196,7 +197,7 @@ function update(dt) {
     }
   }
 
-  // déplacement clavier (diagonale iso)
+  // déplacement : clavier + joystick tactile
   let mx = 0, my = 0, sp = 140;
   let kx = 0, ky = 0;
   if (keys.ArrowLeft  || keys.q || keys.a) kx--;
@@ -205,10 +206,21 @@ function update(dt) {
   if (keys.ArrowDown  || keys.s)           ky++;
   if (kx || ky) { mx = kx + ky; my = ky - kx; }
 
-  // joystick tactile
-  if (touch && !charging && dist(touch, P) > 1.2) {
+  // joystick gauche prioritaire si actif
+  if (joy.active) {
+    const lj = Math.hypot(joy.dx, joy.dy);
+    if (lj > 0.15) {
+      // dx/dy sont en écran -> on convertit en monde (rotation iso)
+      // écran : x+ = droite, y+ = bas.  En iso : droite = (+1,-1) monde, bas = (+1,+1) monde
+      const sx = joy.dx, sy = joy.dy;
+      mx = sx + sy;
+      my = sy - sx;
+      sp = 100 + Math.min(lj, 1) * 80;
+    } else { mx = 0; my = 0; }
+  } else if (touch && !charging && dist(touch, P) > 1.2) {
     mx = touch.x - P.x; my = touch.y - P.y; sp = 100;
   }
+
   const l = Math.hypot(mx, my) || 1;
   if (mx || my) {
     P.x += mx / l * sp * dt;
@@ -218,7 +230,6 @@ function update(dt) {
     P.anim += dt * 10;
   }
 
-  // caméra qui suit le joueur (léger lerp)
   cam.x += (P.x - cam.x) * Math.min(1, dt * 6);
   cam.y += (P.y - cam.y) * Math.min(1, dt * 6);
 
@@ -230,7 +241,6 @@ function update(dt) {
   spawnT -= dt;
   if (spawnT <= 0) { spawn(); spawnT = Math.max(0.35, 1.5 - score / 350); }
 
-  // ennemis
   for (const e of E) {
     const d = Math.hypot(P.x - e.x, P.y - e.y) || 1;
     e.x += (P.x - e.x) / d * e.sp * dt;
@@ -253,7 +263,6 @@ function update(dt) {
     }
   }
 
-  // flèches
   for (const a of A) {
     a.x += Math.cos(a.angle) * a.speed * dt;
     a.y += Math.sin(a.angle) * a.speed * dt;
@@ -268,7 +277,6 @@ function update(dt) {
     if (hit || a.life <= 0 || Math.hypot(a.x - cam.x, a.y - cam.y) > 60) a.dead = true;
   }
 
-  // drops
   for (const d of D) {
     d.t -= dt;
     if (dist(d, P) < 1.4) {
@@ -319,14 +327,12 @@ function drawPlayer() {
     const w = player.width / 4;
     ctx.drawImage(player, dir * w, 0, w, player.height, -26, -26, 52, 52);
   } else {
-    // fallback : petit corps iso
     ctx.fillStyle = '#1de9b6';
     ctx.beginPath(); ctx.arc(0, 0, 16, 0, 7); ctx.fill();
     ctx.fillStyle = '#0a8c6a';
     ctx.beginPath(); ctx.ellipse(0, 10, 14, 7, 0, 0, 7); ctx.fill();
   }
 
-  // arc orienté vers la visée (angle iso = +45°)
   ctx.rotate(a + Math.PI / 4);
   ctx.lineCap = 'round';
   ctx.lineWidth = 3; ctx.strokeStyle = '#ffb347';
@@ -343,7 +349,6 @@ function drawPlayer() {
 const FIRE = { r: 56 };
 function fireBtnPos() { return { x: W - FIRE.r - 20, y: H - FIRE.r - 20 }; }
 function inFireBtn(p) {
-  // p est en coordonnées écran ici
   const b = fireBtnPos();
   return Math.hypot(p.sx - b.x, p.sy - b.y) < FIRE.r * 1.3;
 }
@@ -354,7 +359,6 @@ function draw(now) {
   ctx.font = 'bold 16px monospace';
   ctx.textAlign = 'center';
 
-  // drops
   for (const d of D) {
     const s = toScreen(d.x, d.y);
     const by = s.y + Math.sin(now / 200 + d.x * 10) * 3;
@@ -368,7 +372,6 @@ function draw(now) {
     }
   }
 
-  // tri par profondeur iso : x + y croissant
   const all = E.map(e => ({ d: e.x + e.y, e }))
     .concat([{ d: P.x + P.y, p: 1 }])
     .sort((a, b) => a.d - b.d);
@@ -398,7 +401,6 @@ function draw(now) {
     bar(s.x - 14, s.y - 34, 28, 3, e.hp / 30);
   }
 
-  // flèches
   for (const a of A) {
     const s = toScreen(a.x, a.y);
     ctx.save();
@@ -413,7 +415,6 @@ function draw(now) {
     ctx.restore();
   }
 
-  // explosions (ellipse iso)
   for (const f of F) {
     const s = toScreen(f.x, f.y);
     const k = f.t / 0.35;
@@ -433,17 +434,69 @@ function draw(now) {
     ctx.fillRect(0, 0, W, H);
   }
 
-  // viseur
   const sa = toScreen(aim.x, aim.y);
   ctx.fillStyle = 'rgba(255,255,255,.55)';
   ctx.fillRect(sa.x - 6, sa.y - 1, 12, 2);
   ctx.fillRect(sa.x - 1, sa.y - 6, 2, 12);
 
-  // ligne joueur -> viseur
   const sp2 = toScreen(P.x, P.y);
   ctx.strokeStyle = 'rgba(255,255,255,.15)';
   ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(sp2.x, sp2.y); ctx.lineTo(sa.x, sa.y); ctx.stroke();
+
+  // ---------- JOYSTICK GAUCHE ----------
+  {
+    const jb = joyBasePos();
+    const show = joy.active;
+    const alpha = show ? 0.9 : 0.5;
+    ctx.globalAlpha = alpha;
+
+    // base
+    ctx.beginPath();
+    ctx.arc(jb.x, jb.y, JOY.r, 0, 7);
+    ctx.fillStyle = 'rgba(20,10,40,.55)';
+    ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = show ? '#1de9b6' : '#1de9b6';
+    ctx.stroke();
+
+    // croix directionnelle
+    ctx.strokeStyle = 'rgba(255,255,255,.15)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(jb.x - JOY.r + 8, jb.y); ctx.lineTo(jb.x + JOY.r - 8, jb.y);
+    ctx.moveTo(jb.x, jb.y - JOY.r + 8); ctx.lineTo(jb.x, jb.y + JOY.r - 8);
+    ctx.stroke();
+
+    // poignée
+    const kx = jb.x + joy.dx * (JOY.r - JOY.knob);
+    const ky = jb.y + joy.dy * (JOY.r - JOY.knob);
+    ctx.beginPath();
+    ctx.arc(kx, ky, JOY.knob, 0, 7);
+    ctx.fillStyle = show ? '#1de9b6' : 'rgba(29,233,182,.4)';
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#fff';
+    ctx.stroke();
+
+    // flèche de direction
+    if (show && Math.hypot(joy.dx, joy.dy) > 0.15) {
+      const a = Math.atan2(joy.dy, joy.dx);
+      ctx.save();
+      ctx.translate(kx, ky);
+      ctx.rotate(a);
+      ctx.fillStyle = '#0b1a3a';
+      ctx.beginPath();
+      ctx.moveTo(14, 0);
+      ctx.lineTo(-6, -8);
+      ctx.lineTo(-6, 8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    ctx.globalAlpha = 1;
+  }
 
   // ---------- BOUTON TIR ----------
   const fb = fireBtnPos();
@@ -491,7 +544,6 @@ function draw(now) {
     ctx.fillText(CHARGE_NAMES[chargeLvl], fb.x, fb.y - FIRE.r - 10);
   }
 
-  // textes flottants
   ctx.font = 'bold 14px monospace';
   ctx.textAlign = 'center';
   for (const t of T) {
@@ -547,7 +599,6 @@ function draw(now) {
 }
 
 // ---------- INPUTS ----------
-// Retourne les coordonnées ÉCRAN + MONDE
 const xy = e => {
   const r = canvas.getBoundingClientRect();
   const sx = (e.clientX - r.left) * W / r.width;
@@ -565,10 +616,9 @@ const pressScreen = (sx, sy) => {
 const restart = () => { if (over && overT > 0.6) { reset(); return true; } return false; };
 const key = e => e.key.length > 1 ? e.key : e.key.toLowerCase();
 
-// ---------- CHARGE ----------
 function startCharge(p) {
   charging = true; chargeT = 0; chargeLvl = 0; lastVibLvl = -1;
-  aimBtn = { ox: p.x, oy: p.y };       // en monde
+  aimBtn = { ox: p.x, oy: p.y };
   aim = { x: P.x + (p.x - P.x) * 0.1, y: P.y + (p.y - P.y) * 0.1 };
   vib(10);
 }
@@ -576,47 +626,5 @@ function moveCharge(p) {
   if (!charging || !aimBtn) return;
   const dx = p.x - aimBtn.ox, dy = p.y - aimBtn.oy;
   const len = Math.hypot(dx, dy) || 1;
-  const maxDist = 12;                   // en unités monde
-  const k = Math.min(len, maxDist);
-  aim = { x: P.x + dx / len * k, y: P.y + dy / len * k };
-  touch = p;
-}
-function releaseCharge() {
-  if (!charging) return;
-  shoot(false, chargeLvl);
-  charging = false; chargeT = 0; chargeLvl = 0; aimBtn = null; lastVibLvl = -1;
-}
-function startChargeKb() {
-  charging = true; chargeT = 0; chargeLvl = 0; lastVibLvl = -1; vib(10);
-}
-
-// clavier
-addEventListener('keydown', e => {
-  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
-  const k = key(e); keys[k] = true;
-  if (k == ' ' && !restart()) { if (!charging) startChargeKb(); }
-  if (k == 'e') shoot(true);
-  if (k == 'c') craftExplosive();
-});
-addEventListener('keyup', e => {
-  const k = key(e); keys[k] = false;
-  if (k == ' ') releaseCharge();
-});
-
-// souris
-canvas.addEventListener('mousemove', e => {
-  if (charging) return;
-  const p = xy(e);
-  aim = { x: p.x, y: p.y };
-});
-canvas.addEventListener('mousedown', e => {
-  const p = xy(e);
-  if (pressScreen(p.sx, p.sy) || restart()) return;
-  if (inFireBtn(p)) { startCharge(p); }
-  else { aim = { x: p.x, y: p.y }; startChargeKb(); }
-});
-addEventListener('mouseup', () => { if (charging) releaseCharge(); });
-
-// tactile
-canvas.addEventListener('touchstart', e => {
-  e.preventDefault
+  const maxDist = 12;
+  co
