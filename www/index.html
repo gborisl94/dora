@@ -1,71 +1,10 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<meta name="format-detection" content="telephone=no">
-<title>Grim Dawn Archer</title>
-<style>
-  *{margin:0;padding:0;box-sizing:border-box;user-select:none;-webkit-tap-highlight-color:transparent;}
-  html,body{width:100vw;height:100vh;overflow:hidden;background:#131326;touch-action:none;position:fixed;}
-  #c{display:block;width:100vw;height:100vh;background:#131326;}
-  #ui{position:absolute;top:0;left:0;width:100vw;height:100vh;pointer-events:none;font-family:monospace;font-weight:bold;font-size:11px;color:#fff;z-index:5;}
-  #flash{position:absolute;top:0;left:0;width:100vw;height:100vh;background:#ff0022;opacity:0;pointer-events:none;transition:opacity 0.08s;z-index:10;}
-  .joy{position:absolute;bottom:20px;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,0.08);border:2px solid rgba(255,255,255,0.25);pointer-events:auto;touch-action:none;z-index:20;}
-  #joyL{left:20px;}
-  #joyR{right:20px;}
-  .stick{position:absolute;top:50%;left:50%;width:54px;height:54px;border-radius:50%;background:rgba(255,255,255,0.35);transform:translate(-50%,-50%);pointer-events:none;border:2px solid rgba(255,255,255,0.5);}
-  #fireBtn{position:absolute;right:160px;bottom:30px;width:100px;height:100px;border-radius:50%;background:rgba(255,60,60,0.2);border:3px solid rgba(255,80,80,0.6);color:#fff;font-family:monospace;font-weight:bold;font-size:14px;display:flex;align-items:center;justify-content:center;pointer-events:auto;touch-action:none;z-index:20;text-shadow:0 0 4px #000;overflow:visible;}
-  #fireBtn.active{background:rgba(255,100,60,0.45);border-color:rgba(255,200,80,0.95);}
-  #fireCharge{position:absolute;top:-5px;left:-5px;width:110px;height:110px;border-radius:50%;pointer-events:none;z-index:21;}
-  #hud{position:absolute;top:0;left:0;width:100%;height:52px;background:#000;display:flex;flex-direction:column;padding:0 8px;z-index:15;gap:3px;}
-  #hudRow1{display:flex;align-items:center;gap:8px;height:24px;margin-top:3px;}
-  #hpbar{width:180px;height:12px;background:#222;border:1px solid #555;overflow:hidden;}
-  #hpfill{width:100%;height:100%;background:#0d0;transition:width 0.1s, background 0.2s;}
-  #hudtxt{font-size:11px;color:#ccc;white-space:nowrap;}
-  #lvlBadge{font-size:12px;color:#ffdd44;text-shadow:0 0 6px #ffaa00;margin-left:auto;padding-right:6px;}
-  #xpbarWrap{width:100%;height:8px;background:#1a1a2e;border:1px solid #333;overflow:hidden;position:relative;}
-  #xpfill{width:0%;height:100%;background:linear-gradient(90deg,#4af,#8cf);transition:width 0.25s;}
-  #xptxt{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:8px;color:#fff;text-shadow:0 0 3px #000;letter-spacing:1px;}
-  #zoomUI{position:absolute;top:58px;right:8px;display:flex;flex-direction:column;gap:4px;z-index:20;pointer-events:auto;}
-  .zbtn{width:36px;height:36px;border-radius:8px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.35);color:#fff;font-family:monospace;font-weight:bold;font-size:18px;display:flex;align-items:center;justify-content:center;text-shadow:0 0 4px #000;}
-  #zoomLbl{font-size:10px;color:#aaa;text-align:center;padding:3px 0;background:rgba(0,0,0,0.4);border-radius:4px;}
-  #go{position:absolute;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.65);display:none;align-items:center;justify-content:center;flex-direction:column;pointer-events:auto;z-index:30;}
-  #go h1{font-size:42px;color:#ff007f;text-shadow:0 0 12px #ff007f;margin-bottom:8px;font-family:monospace;}
-  #go p{font-size:18px;color:#fff;margin-bottom:20px;font-family:monospace;}
-  #go button{padding:12px 28px;font-family:monospace;font-weight:bold;font-size:14px;background:#2a2a44;color:#fff;border:2px solid #666;border-radius:6px;}
-  #lvlup{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:34px;color:#ffdd44;text-shadow:0 0 20px #ffaa00,0 0 40px #ffaa00;opacity:0;pointer-events:none;z-index:25;font-family:monospace;font-weight:bold;transition:opacity 0.3s;white-space:nowrap;}
-</style>
-</head>
-<body>
-<canvas id="c"></canvas>
-<div id="ui">
-  <div id="flash"></div>
-  <div id="hud">
-    <div id="hudRow1">
-      <div id="hpbar"><div id="hpfill"></div></div>
-      <div id="hudtxt">HP 100 | FISH 0 ARR 0 EXPL 0 SCORE 0</div>
-      <div id="lvlBadge">LV 1</div>
-    </div>
-    <div id="xpbarWrap">
-      <div id="xpfill"></div>
-      <div id="xptxt">0 / 30 XP</div>
-    </div>
-  </div>
-  <div id="zoomUI">
-    <div class="zbtn" id="zPlus">+</div>
-    <div id="zoomLbl">1.00x</div>
-    <div class="zbtn" id="zMinus">−</div>
-  </div>
-  <div class="joy" id="joyL"><div class="stick" id="stickL"></div></div>
-  <div class="joy" id="joyR"><div class="stick" id="stickR"></div></div>
-  <div id="fireBtn">
-    FEU
-    <canvas id="fireCharge" width="110" height="110"></canvas>
-  </div>
-  <div id="lvlup">LEVEL UP !</div>
-  <div id="go"><h1>GAME OVER</h1><p id="gotxt">Score 0</p><button id="gobtn">RESTART</button></div>
-</div>
-<script src="game.js"></script>
-</body>
-</html>
+<?xml version='1.0' encoding='utf-8'?>
+<widget id="com.indie.miami" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">
+    <name>Indie Miami</name>
+    <description>Indie Miami Archer</description>
+    <author email="dev@example.com" href="https://example.com">Indie</author>
+    <content src="index.html" />
+    <access origin="*" />
+    <allow-intent href="http://*/*" />
+    <allow-intent href="https://*/*" />
+</widget>
