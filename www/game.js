@@ -1,24 +1,22 @@
 (function(){
   // ============ CONFIG ZOOM ============
-  var ZOOM_MIN = 0.5;
-  var ZOOM_MAX = 2.5;
-  var ZOOM_DEFAULT = 1.0;
-  var ZOOM_SPEED = 0.15;
-  var PINCH_SENS = 0.005;
+  var ZOOM_MIN = 0.5, ZOOM_MAX = 2.5, ZOOM_DEF = 1, ZOOM_SPD = 0.15, PINCH = 0.005;
   var camX = 0, camY = 0;
 
   // ============ CONFIG CHARGE ============
-  var CHARGE_LVL2 = 500;
-  var CHARGE_LVL3 = 1200;
-  var CHARGE_MAX = 1800;
+  var CHARGE_LVL2 = 500, CHARGE_LVL3 = 1200, CHARGE_MAX = 1800;
+
+  // ============ CONFIG XP ============
+  var XP_BASE = 30;          // XP pour passer niveau 1 -> 2
+  var XP_GROWTH = 1.4;       // facteur multiplicatif par niveau
 
   // ============ LANDSCAPE LOCK ============
   function lockLandscape(){
-    try { if (window.screen && window.screen.orientation && window.screen.orientation.lock){ window.screen.orientation.lock('landscape').catch(function(){}); } } catch(e){}
+    try { if (window.screen && window.screen.orientation && window.screen.orientation.lock) window.screen.orientation.lock('landscape').catch(function(){}); } catch(e){}
     try {
-      if (window.screen && window.screen.lockOrientation){ window.screen.lockOrientation('landscape'); }
-      else if (window.screen && window.screen.mozLockOrientation){ window.screen.mozLockOrientation('landscape'); }
-      else if (window.screen && window.screen.msLockOrientation){ window.screen.msLockOrientation('landscape'); }
+      if (window.screen && window.screen.lockOrientation) window.screen.lockOrientation('landscape');
+      else if (window.screen && window.screen.mozLockOrientation) window.screen.mozLockOrientation('landscape');
+      else if (window.screen && window.screen.msLockOrientation) window.screen.msLockOrientation('landscape');
     } catch(e){}
   }
   lockLandscape();
@@ -35,6 +33,10 @@
   var fireCharge = document.getElementById('fireCharge');
   var fctx = fireCharge.getContext('2d');
   var zoomLbl = document.getElementById('zoomLbl');
+  var xpfill = document.getElementById('xpfill');
+  var xptxt = document.getElementById('xptxt');
+  var lvlBadge = document.getElementById('lvlBadge');
+  var lvlup = document.getElementById('lvlup');
 
   var W = window.innerWidth, H = window.innerHeight;
   function resize(){ W = window.innerWidth; H = window.innerHeight; cvs.width = W; cvs.height = H; }
@@ -43,29 +45,25 @@
   window.addEventListener('orientationchange', function(){ setTimeout(resize, 200); });
 
   // ============ STATE ============
-  var zoom = ZOOM_DEFAULT;
-  var player = { x: 0, y: 0, hp: 100, maxHp: 100, score: 0, dir: 0, aimAngle: 0, lastRegen: 0 };
-  var bullets = [], enemies = [], particles = [], floaters = [], trails = [];
-  var gameOver = false, hitFlash = 0, shake = 0;
-  var spawnTimer = 0;
-  var isCharging = false, chargeStart = 0, chargeLevel = 0;
-  var lastShotTime = 0;
+  var zoom = ZOOM_DEF;
+  var player = { x: 0, y: 0, hp: 100, maxHp: 100, fish: 0, arr: 0, expl: 0, score: 0,
+                 dir: 0, aimAngle: 0, lastRegen: 0,
+                 level: 1, xp: 0, xpNext: XP_BASE, dmgMult: 1 };
+  var bullets = [], enemies = [], drops = [], particles = [], floaters = [], trails = [];
+  var gameOver = false, hitFlash = 0, shake = 0, spawnTimer = 0;
+  var isCharging = false, chargeStart = 0, chargeLevel = 0, lastShotTime = 0;
 
   // ============ HELPERS ============
   function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
   function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
   function rand(a,b){ return Math.random()*(b-a)+a; }
-  function addFloater(x, y, text, color){ floaters.push({ x:x, y:y, text:text, color:color, life:40 }); }
+  function addFloater(x,y,t,c){ floaters.push({x:x,y:y,text:t,color:c,life:40}); }
 
-  // ============ ZOOM CONTROLS ============
-  function setZoom(z){
-    zoom = clamp(z, ZOOM_MIN, ZOOM_MAX);
-    zoomLbl.textContent = zoom.toFixed(2) + 'x';
-  }
-  document.getElementById('zPlus').addEventListener('touchstart', function(e){ e.preventDefault(); setZoom(zoom + ZOOM_SPEED); }, {passive:false});
-  document.getElementById('zMinus').addEventListener('touchstart', function(e){ e.preventDefault(); setZoom(zoom - ZOOM_SPEED); }, {passive:false});
-  document.getElementById('zPlus').addEventListener('mousedown', function(e){ e.preventDefault(); setZoom(zoom + ZOOM_SPEED); });
-  document.getElementById('zMinus').addEventListener('mousedown', function(e){ e.preventDefault(); setZoom(zoom - ZOOM_SPEED); });
+  function setZoom(z){ zoom = clamp(z, ZOOM_MIN, ZOOM_MAX); zoomLbl.textContent = zoom.toFixed(2) + 'x'; }
+  document.getElementById('zPlus').addEventListener('touchstart', function(e){ e.preventDefault(); setZoom(zoom + ZOOM_SPD); }, {passive:false});
+  document.getElementById('zMinus').addEventListener('touchstart', function(e){ e.preventDefault(); setZoom(zoom - ZOOM_SPD); }, {passive:false});
+  document.getElementById('zPlus').addEventListener('mousedown', function(e){ e.preventDefault(); setZoom(zoom + ZOOM_SPD); });
+  document.getElementById('zMinus').addEventListener('mousedown', function(e){ e.preventDefault(); setZoom(zoom - ZOOM_SPD); });
 
   var pinchStartDist = 0, pinchStartZoom = 1;
   cvs.addEventListener('touchstart', function(e){
@@ -82,10 +80,37 @@
       var dx = e.touches[0].clientX - e.touches[1].clientX;
       var dy = e.touches[0].clientY - e.touches[1].clientY;
       var d = Math.hypot(dx, dy);
-      setZoom(pinchStartZoom + (d - pinchStartDist) * PINCH_SENS);
+      setZoom(pinchStartZoom + (d - pinchStartDist) * PINCH);
     }
   }, {passive:false});
   cvs.addEventListener('touchend', function(){ pinchStartDist = 0; }, {passive:false});
+
+  // ============ XP ============
+  function gainXP(amount){
+    player.xp += amount;
+    while (player.xp >= player.xpNext){
+      player.xp -= player.xpNext;
+      player.level++;
+      player.xpNext = Math.floor(XP_BASE * Math.pow(XP_GROWTH, player.level - 1));
+      player.maxHp += 10;
+      player.hp = player.maxHp;
+      player.dmgMult += 0.10;
+      lvlBadge.textContent = 'LV ' + player.level;
+      showLevelUp();
+    }
+    updateXPBar();
+  }
+
+  function updateXPBar(){
+    var pct = Math.min(100, (player.xp / player.xpNext) * 100);
+    xpfill.style.width = pct + '%';
+    xptxt.textContent = player.xp + ' / ' + player.xpNext + ' XP';
+  }
+
+  function showLevelUp(){
+    lvlup.style.opacity = '1';
+    setTimeout(function(){ lvlup.style.opacity = '0'; }, 900);
+  }
 
   // ============ JOYSTICKS ============
   function makeJoy(el, stick, onMove, onEnd){
@@ -141,9 +166,7 @@
   // ============ BOUTON FEU ============
   function startCharge(){
     if (gameOver) return;
-    isCharging = true;
-    chargeStart = Date.now();
-    chargeLevel = 0;
+    isCharging = true; chargeStart = Date.now(); chargeLevel = 0;
     fireBtn.classList.add('active');
   }
   function releaseCharge(){
@@ -156,8 +179,7 @@
       shoot(player.aimAngle, lvl);
       lastShotTime = Date.now();
     }
-    isCharging = false;
-    chargeLevel = 0;
+    isCharging = false; chargeLevel = 0;
     fireBtn.classList.remove('active');
   }
   fireBtn.addEventListener('touchstart', function(e){ e.preventDefault(); startCharge(); }, {passive:false});
@@ -165,7 +187,6 @@
   fireBtn.addEventListener('touchcancel', function(e){ e.preventDefault(); releaseCharge(); }, {passive:false});
   fireBtn.addEventListener('mousedown', function(e){ e.preventDefault(); startCharge(); });
   fireBtn.addEventListener('mouseup', function(e){ e.preventDefault(); releaseCharge(); });
-
   window.addEventListener('keydown', function(e){ if (e.code === 'Space' && !isCharging) startCharge(); });
   window.addEventListener('keyup', function(e){ if (e.code === 'Space') releaseCharge(); });
 
@@ -181,21 +202,22 @@
     if (player.hp <= 0){
       player.hp = 0; gameOver = true;
       go.style.display = 'flex';
-      gotxt.textContent = 'Score ' + player.score;
+      gotxt.textContent = 'Score ' + player.score + ' | Niveau ' + player.level;
     }
   }
 
   // ============ SPAWN ============
   function spawnEnemy(){
     if (enemies.length >= 8) return;
-    var viewW = W/zoom, viewH = H/zoom;
-    var side = Math.floor(rand(0,4)), ex, ey;
-    if (side===0){ ex=player.x + rand(-viewW/2, viewW/2); ey=player.y - viewH/2 - 40; }
-    else if (side===1){ ex=player.x + viewW/2 + 40; ey=player.y + rand(-viewH/2, viewH/2); }
-    else if (side===2){ ex=player.x + rand(-viewW/2, viewW/2); ey=player.y + viewH/2 + 40; }
-    else { ex=player.x - viewW/2 - 40; ey=player.y + rand(-viewH/2, viewH/2); }
-    enemies.push({ x:ex, y:ey, hp:35, maxHp:35, type:Math.floor(rand(0,4)),
-                   speed:0.7, cool:0, hitFlash:0, knockX:0, knockY:0 });
+    var vW = W/zoom, vH = H/zoom;
+    var s = Math.floor(rand(0,4)), ex, ey;
+    if (s===0){ ex=player.x+rand(-vW/2,vW/2); ey=player.y-vH/2-40; }
+    else if (s===1){ ex=player.x+vW/2+40; ey=player.y+rand(-vH/2,vH/2); }
+    else if (s===2){ ex=player.x+rand(-vW/2,vW/2); ey=player.y+vH/2+40; }
+    else { ex=player.x-vW/2-40; ey=player.y+rand(-vH/2,vH/2); }
+    var hpBase = 35 + Math.floor((player.level - 1) * 8);
+    enemies.push({ x:ex, y:ey, hp:hpBase, maxHp:hpBase, type:Math.floor(rand(0,4)),
+                   speed:0.7 + (player.level-1)*0.03, cool:0, hitFlash:0, knockX:0, knockY:0 });
   }
 
   // ============ SHOOT ============
@@ -203,6 +225,7 @@
     var dmg = 15, size = 3, speed = 7, color = '#ffffff';
     if (lvl === 2){ dmg = 30; size = 4.5; speed = 8.5; color = '#ffdd44'; }
     else if (lvl === 3){ dmg = 60; size = 6.5; speed = 10; color = '#ff4444'; }
+    dmg = Math.floor(dmg * player.dmgMult);
     bullets.push({
       x:player.x, y:player.y,
       vx:Math.cos(angle)*speed, vy:Math.sin(angle)*speed,
@@ -218,13 +241,13 @@
 
   // ============ UPDATE BULLETS ============
   function updateBullets(){
-    var viewW = W/zoom, viewH = H/zoom;
+    var vW = W/zoom, vH = H/zoom;
     for (var i=bullets.length-1; i>=0; i--){
       var b = bullets[i];
-      var prevX = b.x, prevY = b.y;
+      var px = b.x, py = b.y;
       b.x += b.vx; b.y += b.vy; b.life--;
-      trails.push({ x1:prevX, y1:prevY, x2:b.x, y2:b.y, life:8, color: b.color });
-      if (b.life<=0 || Math.abs(b.x - player.x) > viewW || Math.abs(b.y - player.y) > viewH){
+      trails.push({ x1:px, y1:py, x2:b.x, y2:b.y, life:8, color:b.color });
+      if (b.life<=0 || Math.abs(b.x-player.x)>vW || Math.abs(b.y-player.y)>vH){
         bullets.splice(i,1); continue;
       }
       for (var j=enemies.length-1; j>=0; j--){
@@ -235,10 +258,14 @@
           var d = Math.hypot(b.vx, b.vy);
           if (d > 0){ e.knockX = (b.vx/d)*(3+b.lvl); e.knockY = (b.vy/d)*(3+b.lvl); }
           var colorTxt = b.lvl === 3 ? '#ff4444' : (b.lvl === 2 ? '#ffcc44' : '#ffff88');
-          addFloater(e.x, e.y - 25, '-' + b.dmg, colorTxt);
+          addFloater(e.x, e.y-25, '-'+b.dmg, colorTxt);
           var np = b.lvl === 3 ? 14 : (b.lvl === 2 ? 7 : 4);
-          for (var p=0; p<np; p++) particles.push({ x:b.x, y:b.y, vx:rand(-3,3), vy:rand(-3,3), life:15, color: b.color });
-          if (e.hp<=0){ enemies.splice(j,1); player.score+=10; }
+          for (var p=0; p<np; p++) particles.push({ x:b.x, y:b.y, vx:rand(-3,3), vy:rand(-3,3), life:15, color:b.color });
+          if (e.hp<=0){
+            enemies.splice(j,1);
+            player.score += 10 + player.level * 2;
+            gainXP(10 + Math.floor(player.level * 1.5));
+          }
           bullets.splice(i,1); break;
         }
       }
@@ -257,7 +284,24 @@
       if (d < 22 && e.cool <= 0){ takeDamage(4); e.cool = 70; }
       if (e.cool > 0) e.cool--;
       if (e.hitFlash > 0) e.hitFlash--;
-      if (e.hp<=0){ enemies.splice(i,1); player.score+=10; }
+      if (e.hp<=0){
+        enemies.splice(i,1);
+        player.score += 10 + player.level * 2;
+        gainXP(10 + Math.floor(player.level * 1.5));
+      }
+    }
+  }
+
+  // ============ UPDATE DROPS ============
+  function updateDrops(){
+    for (var i=drops.length-1; i>=0; i--){
+      var d = drops[i];
+      if (dist(d, player) < 36){
+        player.fish += d.fish || 0;
+        player.hp = Math.min(player.maxHp, player.hp + (d.hp||0)*2);
+        addFloater(player.x, player.y-30, '+'+((d.hp||0)*2)+'HP', '#00ff88');
+        drops.splice(i,1);
+      }
     }
   }
 
@@ -281,15 +325,13 @@
       var elapsed2 = Date.now() - chargeStart;
       var pct = Math.min(1, elapsed2 / CHARGE_MAX);
       var col = chargeLevel === 3 ? '#ff4444' : (chargeLevel === 2 ? '#ffcc44' : '#ffffff');
-      fctx.strokeStyle = col;
-      fctx.lineWidth = 5;
+      fctx.strokeStyle = col; fctx.lineWidth = 5;
       fctx.beginPath();
       fctx.arc(55, 55, 50, -Math.PI/2, -Math.PI/2 + Math.PI*2*pct);
       fctx.stroke();
       fctx.fillStyle = col;
       fctx.font = 'bold 14px monospace';
-      fctx.textAlign = 'center';
-      fctx.textBaseline = 'middle';
+      fctx.textAlign = 'center'; fctx.textBaseline = 'middle';
       fctx.fillText('LV' + chargeLevel, 55, 55);
     }
   }
@@ -299,7 +341,10 @@
     if (gameOver) return;
 
     var nowSec = Math.floor(Date.now()/2000);
-    if (nowSec !== player.lastRegen){ player.lastRegen = nowSec; player.hp = Math.min(player.maxHp, player.hp + 1); }
+    if (nowSec !== player.lastRegen){
+      player.lastRegen = nowSec;
+      player.hp = Math.min(player.maxHp, player.hp + 1);
+    }
 
     var SPEED = 1.66;
     var dx = moveVec.x*SPEED, dy = moveVec.y*SPEED;
@@ -315,12 +360,16 @@
     if (hitFlash > 0) hitFlash--;
     if (shake > 0.5) shake *= 0.9; else shake = 0;
 
-    updateBullets(); updateEnemies(); updateParticles(); updateCharge();
+    updateBullets(); updateEnemies(); updateDrops(); updateParticles(); updateCharge();
+
+    if (Math.random() < 0.005){
+      drops.push({ x:player.x+rand(-W/zoom/2,W/zoom/2), y:player.y+rand(-H/zoom/2,H/zoom/2), fish:1, hp:15 });
+    }
 
     var hpPct = player.hp/player.maxHp;
     hpfill.style.width = (hpPct*100)+'%';
     hpfill.style.background = hpPct>0.5?'#0d0':hpPct>0.25?'#dd0':'#d22';
-    hudtxt.textContent = 'HP ' + Math.floor(player.hp) + ' | SCORE ' + player.score;
+    hudtxt.textContent = 'HP ' + Math.floor(player.hp) + '/' + player.maxHp + ' | FISH ' + player.fish + ' ARR ' + player.arr + ' EXPL ' + player.expl + ' SCORE ' + player.score;
   }
 
   // ============ DRAW PLAYER ============
@@ -329,56 +378,42 @@
     ctx.beginPath(); ctx.ellipse(player.x, player.y+22, 18, 6, 0, 0, Math.PI*2); ctx.fill();
     ctx.fillStyle = '#4af';
     ctx.beginPath(); ctx.arc(player.x, player.y, 24, 0, Math.PI*2); ctx.fill();
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.moveTo(player.x, player.y);
     ctx.lineTo(player.x + Math.cos(player.aimAngle)*20, player.y + Math.sin(player.aimAngle)*20);
     ctx.stroke();
     if (isCharging && chargeLevel > 0){
       var col = chargeLevel === 3 ? '#ff4444' : (chargeLevel === 2 ? '#ffcc44' : '#ffffff');
-      ctx.strokeStyle = col;
-      ctx.lineWidth = 2/zoom;
-      ctx.beginPath();
-      ctx.arc(player.x, player.y, 32 + chargeLevel*5, 0, Math.PI*2);
-      ctx.stroke();
+      ctx.strokeStyle = col; ctx.lineWidth = 2/zoom;
+      ctx.beginPath(); ctx.arc(player.x, player.y, 32 + chargeLevel*5, 0, Math.PI*2); ctx.stroke();
     }
   }
 
-  // ============ DRAW VISEUR ============
+  // ============ DRAW SNIPER ============
   function drawSniperScope(){
     if (joyRState.mag <= 12 && !isCharging) return;
     var col = '#ff69b4';
-    if (isCharging){
-      col = chargeLevel === 3 ? '#ff4444' : (chargeLevel === 2 ? '#ffcc44' : '#ffffff');
-    }
+    if (isCharging) col = chargeLevel === 3 ? '#ff4444' : (chargeLevel === 2 ? '#ffcc44' : '#ffffff');
     var scopeLen = 130 + chargeLevel*25;
     var endX = player.x + Math.cos(player.aimAngle)*scopeLen;
     var endY = player.y + Math.sin(player.aimAngle)*scopeLen;
     ctx.save();
-    ctx.setLineDash([6,4]);
-    ctx.strokeStyle = col;
-    ctx.lineWidth = 2/zoom;
-    ctx.beginPath();
-    ctx.moveTo(player.x, player.y);
-    ctx.lineTo(endX, endY);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.strokeStyle = col;
-    ctx.lineWidth = 2/zoom;
+    ctx.setLineDash([6,4]); ctx.strokeStyle = col; ctx.lineWidth = 2/zoom;
+    ctx.beginPath(); ctx.moveTo(player.x, player.y); ctx.lineTo(endX, endY); ctx.stroke();
+    ctx.setLineDash([]); ctx.strokeStyle = col; ctx.lineWidth = 2/zoom;
     var r = 12;
     ctx.beginPath(); ctx.arc(endX, endY, r, 0, Math.PI*2); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(endX - r - 6, endY); ctx.lineTo(endX - r, endY); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(endX + r, endY); ctx.lineTo(endX + r + 6, endY); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(endX, endY - r - 6); ctx.lineTo(endX, endY - r); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(endX, endY + r); ctx.lineTo(endX, endY + r + 6); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(endX-r-6, endY); ctx.lineTo(endX-r, endY); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(endX+r, endY); ctx.lineTo(endX+r+6, endY); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(endX, endY-r-6); ctx.lineTo(endX, endY-r); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(endX, endY+r); ctx.lineTo(endX, endY+r+6); ctx.stroke();
     ctx.fillStyle = col;
     ctx.beginPath(); ctx.arc(endX, endY, 2, 0, Math.PI*2); ctx.fill();
     if (isCharging && chargeLevel > 0){
       var elapsed = Date.now() - chargeStart;
       var pct = Math.min(1, elapsed / CHARGE_MAX);
-      ctx.strokeStyle = col;
-      ctx.lineWidth = 3/zoom;
+      ctx.strokeStyle = col; ctx.lineWidth = 3/zoom;
       ctx.beginPath();
       ctx.arc(player.x, player.y, 55, player.aimAngle - 0.5, player.aimAngle - 0.5 + 1.0*pct);
       ctx.stroke();
@@ -389,103 +424,10 @@
   // ============ DRAW ============
   function draw(){
     ctx.fillStyle = '#131326'; ctx.fillRect(0,0,W,H);
-
     ctx.save();
     ctx.translate(W/2, H/2);
     ctx.scale(zoom, zoom);
     ctx.translate(-camX, -camY);
 
-    var viewW = W/zoom, viewH = H/zoom;
-    var startX = Math.floor((camX - viewW/2) / 40) * 40;
-    var endX = camX + viewW/2;
-    var startY = Math.floor((camY - viewH/2) / 40) * 40;
-    var endY = camY + viewH/2;
-    ctx.strokeStyle = '#1c1c35';
-    ctx.lineWidth = 1/zoom;
-    for (var gx = startX; gx < endX; gx += 40){
-      ctx.beginPath(); ctx.moveTo(gx, camY - viewH/2); ctx.lineTo(gx, camY + viewH/2); ctx.stroke();
-    }
-    for (var gy = startY; gy < endY; gy += 40){
-      ctx.beginPath(); ctx.moveTo(camX - viewW/2, gy); ctx.lineTo(camX + viewW/2, gy); ctx.stroke();
-    }
-
-    var sx = 0, sy = 0;
-    if (shake > 0.5){ sx = rand(-shake, shake); sy = rand(-shake, shake); }
-    ctx.translate(sx, sy);
-
-    for (var i2=0; i2<enemies.length; i2++){
-      var e = enemies[i2];
-      ctx.fillStyle = 'rgba(0,0,0,0.4)';
-      ctx.beginPath(); ctx.ellipse(e.x, e.y+18, 16, 5, 0, 0, Math.PI*2); ctx.fill();
-      if (e.hitFlash > 0) ctx.fillStyle = 'rgba(255,255,255,0.9)';
-      else ctx.fillStyle = '#f44';
-      ctx.beginPath(); ctx.arc(e.x, e.y, 22, 0, Math.PI*2); ctx.fill();
-      ctx.fillStyle = '#333'; ctx.fillRect(e.x-20, e.y-30, 40, 4);
-      ctx.fillStyle = '#0f0'; ctx.fillRect(e.x-20, e.y-30, 40*(e.hp/e.maxHp), 4);
-    }
-
-    drawPlayer();
-    drawSniperScope();
-
-    for (var t=0; t<trails.length; t++){
-      var tr = trails[t];
-      ctx.globalAlpha = tr.life/8;
-      ctx.strokeStyle = tr.color || '#ffffaa';
-      ctx.lineWidth = 2/zoom;
-      ctx.beginPath(); ctx.moveTo(tr.x1, tr.y1); ctx.lineTo(tr.x2, tr.y2); ctx.stroke();
-    }
-    ctx.globalAlpha = 1;
-
-    for (var bi=0; bi<bullets.length; bi++){
-      var b = bullets[bi];
-      if (b.lvl >= 2){
-        ctx.fillStyle = b.lvl === 3 ? 'rgba(255,60,60,0.3)' : 'rgba(255,220,80,0.3)';
-        ctx.beginPath(); ctx.arc(b.x, b.y, b.size*3, 0, Math.PI*2); ctx.fill();
-      }
-      ctx.fillStyle = b.color;
-      ctx.beginPath(); ctx.arc(b.x, b.y, b.size, 0, Math.PI*2); ctx.fill();
-    }
-
-    for (var pi=0; pi<particles.length; pi++){
-      var p = particles[pi];
-      ctx.globalAlpha = p.life/25; ctx.fillStyle = p.color;
-      ctx.fillRect(p.x-2, p.y-2, 4, 4);
-    }
-    ctx.globalAlpha = 1;
-
-    ctx.font = 'bold ' + (12/zoom) + 'px monospace';
-    ctx.textAlign = 'center';
-    for (var fi=0; fi<floaters.length; fi++){
-      var f = floaters[fi];
-      ctx.globalAlpha = Math.min(1, f.life/20);
-      ctx.fillStyle = '#000'; ctx.fillText(f.text, f.x+1/zoom, f.y+1/zoom);
-      ctx.fillStyle = f.color; ctx.fillText(f.text, f.x, f.y);
-    }
-    ctx.globalAlpha = 1; ctx.textAlign = 'left';
-
-    ctx.restore();
-  }
-
-  // ============ LOOP ============
-  function loop(){
-    try { update(); draw(); }
-    catch(err){
-      ctx.fillStyle = 'rgba(180,0,0,0.85)'; ctx.fillRect(0, 0, W, 20);
-      ctx.fillStyle = '#fff'; ctx.font = 'bold 11px monospace';
-      ctx.fillText('ERR ' + err.message, 6, 14);
-    }
-    requestAnimationFrame(loop);
-  }
-  loop();
-
-  // ============ RESTART ============
-  document.getElementById('gobtn').addEventListener('click', function(){
-    player.hp=100; player.score=0; player.x=0; player.y=0; player.lastRegen=0;
-    camX=0; camY=0;
-    bullets=[]; enemies=[]; particles=[]; floaters=[]; trails=[];
-    gameOver=false; go.style.display='none'; hitFlash=0; shake=0;
-    isCharging=false; chargeLevel=0;
-    setZoom(ZOOM_DEFAULT);
-  });
-
-  window.addEventListener('contextmenu', function(e){ e.preventDefault
+    var vW = W/zoom, vH = H/zoom;
+    var sX = Math.floor((camX-vW/2)/40)*
