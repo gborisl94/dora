@@ -39,7 +39,7 @@ function fit() {
   b.lineWidth = 1;
   for (let x = 0; x <= W; x += 40) { b.strokeStyle = 'rgba(255,60,172,.18)'; b.beginPath(); b.moveTo(x, 0); b.lineTo(x, H); b.stroke(); }
   for (let y = 0; y <= H; y += 40) { b.strokeStyle = 'rgba(29,233,182,.15)'; b.beginPath(); b.moveTo(0, y); b.lineTo(W, y); b.stroke(); }
-  // boutons au-dessus du joystick droit
+  // boutons remontés au-dessus du joystick droit
   btns.forEach((bb, i) => { bb.x = W - 108 - i * 108; bb.y = H - 200; bb.w = 100; bb.h = 42; });
   zoomBtns.forEach((z, i) => { z.x = W - 40 - i * 44; z.y = 34; z.w = 36; z.h = 36; });
   if (P) { P.x = Math.min(P.x, W - 16); P.y = Math.min(P.y, H - 30); }
@@ -282,7 +282,7 @@ function draw(now) {
     ctx.fillStyle = show ? '#ff3cac' : 'rgba(255,60,172,.4)'; ctx.fill();
     ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke();
 
-    // icône "viseur" au centre quand inactif
+    // icône viseur au centre quand inactif
     if (!show) {
       ctx.strokeStyle = 'rgba(255,60,172,.7)'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(jb.x, jb.y, 10, 0, 7); ctx.stroke();
@@ -448,10 +448,10 @@ canvas.addEventListener('touchmove', e => {
       joyR.dx = dx / max; joyR.dy = dy / max;
       continue;
     }
-    // tir / déplacement
+    // tir / déplacement tap
     if (t.identifier === tid) touch = aim = p;
   }
 }, { passive: false });
 
 const tend = e => {
-  if (e.touches.length < 2) pinchSta
+  if (e.touches.length < 
