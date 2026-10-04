@@ -44,8 +44,7 @@
 
   // ============ STATE ============
   var zoom = ZOOM_DEFAULT;
-  var player = { x: 0, y: 0, hp: 100, maxHp: 100, score: 0,
-                 dir: 0, aimAngle: 0, lastRegen: 0 };
+  var player = { x: 0, y: 0, hp: 100, maxHp: 100, score: 0, dir: 0, aimAngle: 0, lastRegen: 0 };
   var bullets = [], enemies = [], particles = [], floaters = [], trails = [];
   var gameOver = false, hitFlash = 0, shake = 0;
   var spawnTimer = 0;
@@ -68,7 +67,6 @@
   document.getElementById('zPlus').addEventListener('mousedown', function(e){ e.preventDefault(); setZoom(zoom + ZOOM_SPEED); });
   document.getElementById('zMinus').addEventListener('mousedown', function(e){ e.preventDefault(); setZoom(zoom - ZOOM_SPEED); });
 
-  // Pinch à 2 doigts (hors joysticks et hors bouton FEU)
   var pinchStartDist = 0, pinchStartZoom = 1;
   cvs.addEventListener('touchstart', function(e){
     if (e.touches.length === 2){
@@ -280,8 +278,8 @@
     }
     fctx.clearRect(0, 0, 110, 110);
     if (isCharging && chargeLevel > 0){
-      var elapsed = Date.now() - chargeStart;
-      var pct = Math.min(1, elapsed / CHARGE_MAX);
+      var elapsed2 = Date.now() - chargeStart;
+      var pct = Math.min(1, elapsed2 / CHARGE_MAX);
       var col = chargeLevel === 3 ? '#ff4444' : (chargeLevel === 2 ? '#ffcc44' : '#ffffff');
       fctx.strokeStyle = col;
       fctx.lineWidth = 5;
@@ -308,7 +306,6 @@
     player.x += dx; player.y += dy;
     if (dx!==0 || dy!==0) player.dir = Math.atan2(dy,dx);
 
-    // Caméra suit le joueur avec lissage
     camX += (player.x - camX) * 0.15;
     camY += (player.y - camY) * 0.15;
 
@@ -393,13 +390,11 @@
   function draw(){
     ctx.fillStyle = '#131326'; ctx.fillRect(0,0,W,H);
 
-    // --- MONDE (avec zoom + caméra) ---
     ctx.save();
     ctx.translate(W/2, H/2);
     ctx.scale(zoom, zoom);
     ctx.translate(-camX, -camY);
 
-    // Grille monde (redimensionnée avec le zoom)
     var viewW = W/zoom, viewH = H/zoom;
     var startX = Math.floor((camX - viewW/2) / 40) * 40;
     var endX = camX + viewW/2;
@@ -414,12 +409,10 @@
       ctx.beginPath(); ctx.moveTo(camX - viewW/2, gy); ctx.lineTo(camX + viewW/2, gy); ctx.stroke();
     }
 
-    // Shake
     var sx = 0, sy = 0;
     if (shake > 0.5){ sx = rand(-shake, shake); sy = rand(-shake, shake); }
     ctx.translate(sx, sy);
 
-    // Ennemis
     for (var i2=0; i2<enemies.length; i2++){
       var e = enemies[i2];
       ctx.fillStyle = 'rgba(0,0,0,0.4)';
@@ -434,7 +427,6 @@
     drawPlayer();
     drawSniperScope();
 
-    // Traînées
     for (var t=0; t<trails.length; t++){
       var tr = trails[t];
       ctx.globalAlpha = tr.life/8;
@@ -444,7 +436,6 @@
     }
     ctx.globalAlpha = 1;
 
-    // Balles
     for (var bi=0; bi<bullets.length; bi++){
       var b = bullets[bi];
       if (b.lvl >= 2){
@@ -455,7 +446,6 @@
       ctx.beginPath(); ctx.arc(b.x, b.y, b.size, 0, Math.PI*2); ctx.fill();
     }
 
-    // Particules
     for (var pi=0; pi<particles.length; pi++){
       var p = particles[pi];
       ctx.globalAlpha = p.life/25; ctx.fillStyle = p.color;
@@ -463,10 +453,39 @@
     }
     ctx.globalAlpha = 1;
 
-    // Dégâts flottants
     ctx.font = 'bold ' + (12/zoom) + 'px monospace';
     ctx.textAlign = 'center';
     for (var fi=0; fi<floaters.length; fi++){
       var f = floaters[fi];
       ctx.globalAlpha = Math.min(1, f.life/20);
-      ctx.fillStyle = '#000'; ctx.fillText(f.text, f.x
+      ctx.fillStyle = '#000'; ctx.fillText(f.text, f.x+1/zoom, f.y+1/zoom);
+      ctx.fillStyle = f.color; ctx.fillText(f.text, f.x, f.y);
+    }
+    ctx.globalAlpha = 1; ctx.textAlign = 'left';
+
+    ctx.restore();
+  }
+
+  // ============ LOOP ============
+  function loop(){
+    try { update(); draw(); }
+    catch(err){
+      ctx.fillStyle = 'rgba(180,0,0,0.85)'; ctx.fillRect(0, 0, W, 20);
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 11px monospace';
+      ctx.fillText('ERR ' + err.message, 6, 14);
+    }
+    requestAnimationFrame(loop);
+  }
+  loop();
+
+  // ============ RESTART ============
+  document.getElementById('gobtn').addEventListener('click', function(){
+    player.hp=100; player.score=0; player.x=0; player.y=0; player.lastRegen=0;
+    camX=0; camY=0;
+    bullets=[]; enemies=[]; particles=[]; floaters=[]; trails=[];
+    gameOver=false; go.style.display='none'; hitFlash=0; shake=0;
+    isCharging=false; chargeLevel=0;
+    setZoom(ZOOM_DEFAULT);
+  });
+
+  window.addEventListener('contextmenu', function(e){ e.preventDefault
