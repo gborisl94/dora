@@ -1,0 +1,23 @@
+{
+  "name": "indiemiami",
+  "displayName": "Grim Dawn Archer",
+  "version": "1.0.0",
+  "description": "Archer survival twin-stick shooter",
+  "main": "index.js",
+  "scripts": {
+    "build": "cordova build android",
+    "build:debug": "cordova build android --debug",
+    "build:release": "cordova build android --release"
+  },
+  "author": "indiemiami",
+  "license": "MIT",
+  "devDependencies": {
+    "cordova-android": "^12.0.0"
+  },
+  "cordova": {
+    "platforms": ["android"],
+    "plugins": {
+      "cordova-plugin-screen-orientation": {}
+    }
+  }
+}
